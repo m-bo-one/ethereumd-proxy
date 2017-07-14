@@ -1,0 +1,8 @@
+*.pyc
+*.log
+__pycache__/
+build/
+ethdsync/
+node/
+test_box/bitcoin-testnet-box/
+test_box/testnet/
