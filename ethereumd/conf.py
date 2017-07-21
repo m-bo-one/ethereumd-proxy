@@ -1,7 +1,9 @@
 import os
 import argparse
+import sys
 
 from .utils import read_config_file, homify
+from .proxy.base import ProxyMethod
 
 
 __all__ = [
@@ -15,6 +17,36 @@ ETHEREUM_DEFAULT_FOLDERS = {
 GETH_DEFAULT_PORT = 8454
 
 
+def __parse_cmd():
+    try:
+        rpc_cmd_name = sys.argv[1:2][0]
+    except IndexError:
+        rpc_cmd_name = ''
+
+    if rpc_cmd_name in ('help',):
+        try:
+            rpc_cmd_name = sys.argv[2:3][0]
+        except IndexError:
+            rpc_cmd_name = ''
+
+        cmd = getattr(ProxyMethod, rpc_cmd_name, None)
+        if cmd:
+            print(cmd.__doc__)
+        else:
+            print("""== Blockchain ==
+getblock "blockhash" ( verbose )
+
+== Wallet ==
+gettransaction "txid" ( include_watchonly )
+listaccounts ( minconf include_watchonly )""")
+        sys.exit(0)
+
+    cmd = getattr(ProxyMethod, rpc_cmd_name, '')
+    if cmd:
+        sys.argv.pop(1)
+    return cmd
+
+
 def _argparse():
     parser = argparse.ArgumentParser(
         description='Ethereumd proxy RPC client version v0.1')
@@ -24,7 +56,10 @@ def _argparse():
     parser.add_argument("-datadir", type=str,
                         default=ETHEREUM_DEFAULT_FOLDERS['main'],
                         help="Specify data directory")
+    # cmd_to_exec = __parse_cmd()
     args = parser.parse_args()
+    # args.cmd_to_exec = cmd_to_exec
+
     return args
 
 

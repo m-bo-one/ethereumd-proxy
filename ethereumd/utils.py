@@ -15,6 +15,27 @@ def hex_to_dec(x: str) -> int:
     return int(x, 16)
 
 
+def wei_to_ether(wei):
+    '''
+    Convert wei to ether
+    '''
+    return 1.0 * wei / 10**18
+
+
+def ether_to_wei(ether):
+    '''
+    Convert ether to wei
+    '''
+    return ether * 10**18
+
+
+def ether_to_gwei(ether):
+    '''
+    Convert ether to Gwei
+    '''
+    return ether * 10**9
+
+
 def read_config_file(filename: str) -> {}:
     """
     Read a simple ``'='``-delimited config file.

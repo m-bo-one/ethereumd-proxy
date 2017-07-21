@@ -1,24 +1,80 @@
 import operator
 import asyncio
+from enum import IntEnum
 from abc import abstractmethod
 
-from ethereum.utils import denoms
+from ..exceptions import BadResponseError
+from ..utils import hex_to_dec, wei_to_ether, ether_to_gwei
 
-from ethereumd.exceptions import BadResponseError
-from ethereumd.utils import hex_to_dec
+
+class Category(IntEnum):
+    Blockchain = 0
+    Control = 1
+    Generating = 2
+    Mining = 3
+    Network = 4
+    Rawtransactions = 5
+    Util = 6
+    Wallet = 7
+
+
+class Method:
+    _r = {}
+
+    @classmethod
+    def registry(cls, category):
+        def decorator(fn):
+            cls._r.setdefault('category_%s' % int(category), []) \
+                .append(fn.__name__)
+            return fn
+        return decorator
+
+    @classmethod
+    def get_categories(cls):
+        return dict((Category(int(key.replace('category_', ''))).name, funcs)
+                    for key, funcs in cls._r.items()
+                    if 'category_' in key)
 
 
 class ProxyMethod:
 
-    @abstractmethod
-    def _call(self, method, params=None, _id=None):
-        pass
+    async def help(self):
+        categories = Method.get_categories()
+        result = ""
+        for category, funcs in categories.items():
+            result += "== %s ==\n" % category
+            for func in funcs:
+                result += func + '\n'
+            result += "\n"
+        return result
 
-    async def _calculate_confirmations(self, response):
-        return (hex_to_dec(await self._call('eth_blockNumber')) -
-                hex_to_dec(response['number']))
+    @Method.registry(Category.Blockchain)
+    async def getdifficulty(self):
+        return hex_to_dec(await self._call('eth_hashrate'))
 
-    async def listaccounts(self, minconf=1):
+    @Method.registry(Category.Wallet)
+    async def getbalance(self, minconf=1, include_watchonly=True):
+        # NOTE: minconf nt work curently
+        addresses = await self._call('eth_accounts')
+
+        async def _get_balance(address):
+            balance = (await self._call(
+                       'eth_getBalance', [address, "latest"])) or 0
+            if not isinstance(balance, (int, float)):
+                balance = hex_to_dec(balance)
+            return wei_to_ether(balance)
+
+        return sum(await asyncio.gather(*(_get_balance(address)
+                                          for address in addresses)))
+
+    @Method.registry(Category.Wallet)
+    async def settxfee(self, amount):
+        self._gas_amount = amount / 21000
+        self._gas_price = ether_to_gwei(self._gas_amount)
+        return True
+
+    @Method.registry(Category.Wallet)
+    async def listaccounts(self, minconf=1, include_watchonly=True):
         # NOTE: minconf nt work curently
         addresses = await self._call('eth_accounts')
         accounts = {}
@@ -28,22 +84,13 @@ class ProxyMethod:
                        'eth_getBalance', [address, "latest"])) or 0
             if not isinstance(balance, (int, float)):
                 balance = hex_to_dec(balance)
-            accounts[account] = balance / denoms.ether
+            accounts[account] = wei_to_ether(balance)
 
         return accounts
 
-    async def _get_confirmations(self, block):
-        last_block_number = await self._call('eth_blockNumber')
-        if not last_block_number:
-            raise RuntimeError('Blockchain not synced.')
-
-        if not block['number']:
-            return 0
-        return (hex_to_dec(last_block_number) -
-                hex_to_dec(block['number']))
-
-    async def gettransaction(self, txid, watch_only=False):
-        # TODO: Make workable watch_only flag
+    @Method.registry(Category.Wallet)
+    async def gettransaction(self, txid, include_watchonly=False):
+        # TODO: Make workable include_watchonly flag
         transaction, addresses = await asyncio.gather(
             self._call('eth_getTransactionByHash', [txid]),
             self._call('eth_accounts')
@@ -52,7 +99,7 @@ class ProxyMethod:
             return
 
         trans_info = {
-            'amount': float(hex_to_dec(transaction['value']) / denoms.ether),
+            'amount': wei_to_ether(hex_to_dec(transaction['value'])),
             'confirmations': 0,
             'trusted': None,
             "walletconflicts": [],
@@ -89,11 +136,25 @@ class ProxyMethod:
                     self._call('eth_getTransactionByHash', [txid]),
                     self._call('eth_getTransactionReceipt', [txid])
                 )
-                from_['fee'] = (tr_hash['gasPrice'] * tr_receipt['gasUsed'] /
-                                denoms.ether)
+                from_['fee'] = (tr_hash['gasPrice'] *
+                                wei_to_ether(tr_receipt['gasUsed']))
             trans_info['details'].append(from_)
         return trans_info
 
+    @Method.registry(Category.Blockchain)
+    async def getblockcount(self):
+        return hex_to_dec(await self._call('eth_blockNumber'))
+
+    @Method.registry(Category.Blockchain)
+    async def getbestblockhash(self):
+        block = await self._call('eth_getBlockByNumber', ['latest', False])
+        if block is None:
+            raise BadResponseError({
+                'error': {'code': -5, 'message': 'Block not found'}
+            })
+        return block['hash']
+
+    @Method.registry(Category.Blockchain)
     async def getblock(self, blockhash, verbose=True):
         block = await self._call('eth_getBlockByHash', [blockhash, False])
         if block is None:
@@ -122,3 +183,25 @@ class ProxyMethod:
             'chainwork': None,
             'previousblockhash': block['parentHash']
         }
+
+    # ABSTRACT METHODS
+
+    @abstractmethod
+    def _call(self, method, params=None, _id=None):
+        pass
+
+    # UTILS METHODS
+
+    async def _calculate_confirmations(self, response):
+        return (hex_to_dec(await self._call('eth_blockNumber')) -
+                hex_to_dec(response['number']))
+
+    async def _get_confirmations(self, block):
+        last_block_number = await self._call('eth_blockNumber')
+        if not last_block_number:
+            raise RuntimeError('Blockchain not synced.')
+
+        if not block['number']:
+            return 0
+        return (hex_to_dec(last_block_number) -
+                hex_to_dec(block['number']))
