@@ -36,28 +36,6 @@ def ether_to_gwei(ether):
     return ether * 10**9
 
 
-def read_config_file(filename: str) -> {}:
-    """
-    Read a simple ``'='``-delimited config file.
-    Raises :const:`IOError` if unable to open file, or :const:`ValueError`
-    if an parse error occurs.
-    """
-    f = open(filename)
-    try:
-        cfg = {}
-        for line in f:
-            line = line.strip()
-            if line and not line.startswith("#"):
-                try:
-                    (key, value) = line.split('=', 1)
-                    cfg[key] = value
-                except ValueError:
-                    pass  # Happens when line has no '=', ignore
-    finally:
-        f.close()
-    return cfg
-
-
 def create_default_logger(level=logging.DEBUG):
     handler = colorlog.StreamHandler()
     formatter = colorlog.ColoredFormatter(

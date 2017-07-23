@@ -10,7 +10,6 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 
 from ethereumd.proxy import RPCProxy, IPCProxy
-from ethereumd.conf import config
 from ethereumd.poller import Poller
 from ethereumd.utils import create_default_logger
 from ethereumd.exceptions import BadResponseError
@@ -33,33 +32,63 @@ class SentryErrorHandler(ErrorHandler):
 
 class RPCServer:
 
-    def __init__(self, debug=False, loop=None):
+    def __init__(self,
+                 ethpconnect='127.0.0.1',
+                 ethpport=9575,
+                 rpcconnect='127.0.0.1',
+                 rpcport=8545,
+                 ipcconnect=None,
+                 config_path=None,
+                 blocknotify=None,
+                 walletnotify=None,
+                 alertnotify=None,
+                 *, loop=None):
         self._loop = loop or asyncio.get_event_loop()
-        self._debug = debug
         self._app = Sanic(__name__,
                           log_config=None,
                           error_handler=SentryErrorHandler())
-        if 'ipcconnect' in config:
-            self._proxy = IPCProxy(config['ipcconnect'],
+        self._host = ethpconnect
+        self._port = ethpport
+        self._rpc_host = rpcconnect
+        self._rpc_port = rpcport
+        self._unix_socket = ipcconnect
+        if self._unix_socket:
+            self._proxy = IPCProxy(self._unix_socket,
                                    loop=self._loop)
         else:
-            self._proxy = RPCProxy(config['rpcconnect'], config['rpcport'],
+            self._proxy = RPCProxy(self._rpc_host, self._rpc_port,
                                    loop=self._loop)
+
+        self._config_path = config_path
+        self._blocknotify = blocknotify
+        self._walletnotify = walletnotify
+        self._alertnotify = alertnotify
         self._log = logging.getLogger('rpc_server')
         self.routes()
+
+    @property
+    def has_blocknotify(self):
+        return bool(self._blocknotify)
+
+    @property
+    def has_walletnotify(self):
+        return bool(self._walletnotify)
+
+    @property
+    def has_alertnotify(self):
+        return bool(self._alertnotify)
 
     def before_server_start(self):
         @self._app.listener('before_server_start')
         async def initialize_scheduler(app, loop):
-            self._poller = Poller(self._proxy, loop=loop)
+            self._poller = Poller(self, self._proxy, loop=loop)
             self._scheduler = AsyncIOScheduler({'event_loop': loop})
-            await self._loop.run_in_executor(None, os.chdir,
-                                             config['config_path'])
-            if 'blocknotify' in config:
+            await self._loop.run_in_executor(None, os.chdir, self._config_path)
+            if self.has_blocknotify:
                 self._scheduler.add_job(self._poller.blocknotify, 'interval',
                                         id='blocknotify',
                                         seconds=1)
-            if 'walletnotify' in config:
+            if self.has_walletnotify:
                 self._scheduler.add_job(self._poller.walletnotify, 'interval',
                                         id='walletnotify',
                                         seconds=1)
@@ -110,9 +139,9 @@ class RPCServer:
         self.before_server_start()
         print(self._greeting)
         server_settings = self._app._helper(
-            host=config['ethpconnect'],
-            port=config['ethpport'],
-            debug=self._debug,
+            host=self._host,
+            port=self._port,
+            debug=True,
             loop=self._loop,
             backlog=100,
             run_async=True,
@@ -122,8 +151,3 @@ class RPCServer:
             self._loop.run_forever()
         except Exception:
             self._poller.stop()
-
-
-if __name__ == '__main__':
-    server = RPCServer(debug=True)
-    server.run()
