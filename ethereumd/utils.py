@@ -37,7 +37,8 @@ def ether_to_gwei(ether):
 
 
 def create_default_logger(level=logging.DEBUG):
-    handler = colorlog.StreamHandler()
+    handler = logging.FileHandler('/tmp/ethereumd-proxy.log')
+    # handler = colorlog.StreamHandler()
     formatter = colorlog.ColoredFormatter(
         "%(log_color)s[%(asctime)s %(levelname)s "
         "%(name)s - %(module)s:%(funcName)s:%(lineno)d]"

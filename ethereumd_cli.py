@@ -1,7 +1,7 @@
 import os
 import sys
+import signal
 import click
-from daemonize import Daemonize
 
 from ethereumd_proxy import RPCServer
 
@@ -48,7 +48,6 @@ def _refine_conf(ctx, param, value):
         click.echo('%s not found.' % value)
         sys.exit(1)
     else:
-        settings['config_path'] = datadir
         if 'ipcconnect' in settings:
             settings['ipcconnect'] = os.path.join(datadir,
                                                   settings['ipcconnect'])
@@ -65,7 +64,18 @@ def _refine_pid(ctx, param, value):
     return value
 
 
-@click.command(context_settings=CONTEXT_SETTINGS)
+def setup_server(config):
+    try:
+        return RPCServer(**config)
+    except FileNotFoundError:
+        click.echo('Error: unix socket not found. Is it geth started?')
+        sys.exit(1)
+    except ConnectionRefusedError:
+        click.echo('Error: geth node not started yet. Abort.')
+        sys.exit(1)
+
+
+@click.group(context_settings=CONTEXT_SETTINGS, invoke_without_command=True)
 @click.option('-datadir', metavar='<dir>',
               type=click.Path(exists=True, allow_dash=True),
               required=True,
@@ -78,24 +88,66 @@ def _refine_pid(ctx, param, value):
 @click.option('-daemon',
               is_flag=True,
               help='Run in the background as a daemon and accept commands')
-@click.option('-pid', metavar='<file>',
+@click.option('-pid', 'pid_file', metavar='<file>',
               default='ethereum.pid',
               help='Specify pid file (default: ethereum.pid)',
               callback=_refine_pid)
-def cli(conf, daemon, datadir, pid):
+@click.pass_context
+def cli(ctx, conf, daemon, datadir, pid_file, *args, **kwargs):
     """Ethereum Core proxy to geth node."""
-    if daemon:
+    os.chdir(datadir)
+    if daemon and ctx.invoked_subcommand is None:
+        pid = os.fork()
+        if pid == 0:
+            server = setup_server(conf)
+            try:
+                with open(pid_file, "w") as fpid:
+                    fpid.write(str(os.getpid()))
+            except OSError:
+                click.echo('Error: can\'nt store pid, abort.')
+                sys.exit(1)
+            click.echo('Ethereum proxy server starting')
+            try:
+                server.run()
+            except Exception:
+                os.remove(pid_file)
+        sys.exit(0)
+    elif ctx.invoked_subcommand is None:
         try:
-            server = RPCServer(**conf)
-        except ConnectionRefusedError:
-            click.echo('Error: geth node not started yet. Abort.')
+            with open(pid_file, "r") as fpid:
+                pid = int(fpid.read())
+        except (OSError, AttributeError):
+            pass
+        else:
+            click.echo('Error: etereumd proxy already runned.')
             sys.exit(1)
 
-        daemon = Daemonize(app="ethereumd_proxy", pid=pid, action=server.run)
-        daemon.start()
-        click.echo('Ethereum proxy server starting')
-        sys.exit(0)
-    sys.exit(1)
+        setup_server(conf).run()
+
+
+@cli.command(help='Stop ethereumd proxy server')
+@click.pass_context
+def stop(ctx):
+    pid_file = ctx.parent.params['pid_file']
+    try:
+        with open(pid_file, "r") as fpid:
+            pid = int(fpid.read())
+    except OSError as e:
+        click.echo('Error: etereumd proxy not runned yet.')
+        sys.exit(1)
+    except AttributeError:
+        click.echo('Error: invalid pid.')
+        sys.exit(1)
+
+    try:
+        os.kill(int(pid), signal.SIGTERM)
+    except OSError:
+        click.echo('Error: etereumd proxy was already stoped.')
+        sys.exit(1)
+    finally:
+        os.remove(pid_file)
+
+    click.echo('Ethereum proxy server stoping.')
 
 
 if __name__ == '__main__':

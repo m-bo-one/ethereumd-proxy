@@ -38,7 +38,6 @@ class RPCServer:
                  rpcconnect='127.0.0.1',
                  rpcport=8545,
                  ipcconnect=None,
-                 config_path=None,
                  blocknotify=None,
                  walletnotify=None,
                  alertnotify=None,
@@ -59,7 +58,6 @@ class RPCServer:
             self._proxy = RPCProxy(self._rpc_host, self._rpc_port,
                                    loop=self._loop)
 
-        self._config_path = config_path
         self._blocknotify = blocknotify
         self._walletnotify = walletnotify
         self._alertnotify = alertnotify
@@ -83,7 +81,6 @@ class RPCServer:
         async def initialize_scheduler(app, loop):
             self._poller = Poller(self, self._proxy, loop=loop)
             self._scheduler = AsyncIOScheduler({'event_loop': loop})
-            await self._loop.run_in_executor(None, os.chdir, self._config_path)
             if self.has_blocknotify:
                 self._scheduler.add_job(self._poller.blocknotify, 'interval',
                                         id='blocknotify',
@@ -137,7 +134,7 @@ class RPCServer:
 
     def run(self):
         self.before_server_start()
-        print(self._greeting)
+        # print(self._greeting)
         server_settings = self._app._helper(
             host=self._host,
             port=self._port,
