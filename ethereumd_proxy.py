@@ -1,5 +1,4 @@
 import logging
-import os
 import asyncio
 
 from sanic import Sanic, response

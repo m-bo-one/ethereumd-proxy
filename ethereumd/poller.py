@@ -125,7 +125,7 @@ class Poller:
 
     async def _exec_command(self, cmd_name, data):
         try:
-            cmd = getattr(self._server, cmd_name) % data
+            cmd = getattr(self._server, '_%s' % cmd_name) % data
         except AttributeError:
             cmd = None
             self._log.warning('%s command not found', cmd_name)

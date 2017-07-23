@@ -64,6 +64,17 @@ def _refine_pid(ctx, param, value):
     return value
 
 
+def check_if_server_runned(pid_file):
+    try:
+        with open(pid_file, "r") as fpid:
+            int(fpid.read())
+    except (OSError, AttributeError):
+        pass
+    else:
+        click.echo('Error: etereumd proxy already runned.')
+        sys.exit(1)
+
+
 def setup_server(config):
     try:
         return RPCServer(**config)
@@ -93,10 +104,11 @@ def setup_server(config):
               help='Specify pid file (default: ethereum.pid)',
               callback=_refine_pid)
 @click.pass_context
-def cli(ctx, conf, daemon, datadir, pid_file, *args, **kwargs):
+def cli(ctx, conf, daemon, datadir, pid_file):
     """Ethereum Core proxy to geth node."""
     os.chdir(datadir)
     if daemon and ctx.invoked_subcommand is None:
+        check_if_server_runned(pid_file)
         pid = os.fork()
         if pid == 0:
             server = setup_server(conf)
@@ -111,17 +123,8 @@ def cli(ctx, conf, daemon, datadir, pid_file, *args, **kwargs):
                 server.run()
             except Exception:
                 os.remove(pid_file)
-        sys.exit(0)
     elif ctx.invoked_subcommand is None:
-        try:
-            with open(pid_file, "r") as fpid:
-                pid = int(fpid.read())
-        except (OSError, AttributeError):
-            pass
-        else:
-            click.echo('Error: etereumd proxy already runned.')
-            sys.exit(1)
-
+        check_if_server_runned(pid_file)
         setup_server(conf).run()
 
 
@@ -155,6 +158,6 @@ if __name__ == '__main__':
 
 
 # TODO:
-# 1) Add -daemon command for starting server;
-# 2) Add -stop command for stoping server;
+# ~1) Add -daemon command for starting server;
+# ~2) Add -stop command for stoping server;
 # 3) Add "command" execution from cli;
