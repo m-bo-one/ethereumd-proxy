@@ -111,7 +111,10 @@ class RPCServer:
             return response.json({
                 'id': data['id'],
                 'result': None,
-                'error': e.args[0]
+                'error': {
+                    'message': e.args[0],
+                    'code': -1
+                }
             })
         except BadResponseError as e:
             return response.json({

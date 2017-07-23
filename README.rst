@@ -8,8 +8,9 @@ Python client for go-ethereum node using the JSON-RPC or IPC interface.
 Why?
 ----
 
-Create a similar to bitcoind node with similar as possible API methods and signals
-like walletnotfy, blocknotify, alertnotify.
+Geth/parity does not have block and transaction notification via blocknotify and walletnotify.
+You need to implement by yourself this system via polling. This proxy already have
+similar implementation like in bitcoind and some possible methods for now via JSON-RPC.
 
 Installation
 ------------
@@ -24,23 +25,34 @@ After install dependencies:
 
 .. code:: bash
 
-   $ pip install -r requirements.txt
+   $ python setup.py install
 
-To run it use:
+To start proxy server use:
 
 .. code:: bash
 
-   $ python ethereum-proxy.py -datadir=<path_to_your_dir_with_ethereum.conf>
+   $ ethereum-cli -datadir=<path_to_your_dir_with_ethereum.conf> -daemon
+
+To stop server:
+
+.. code:: bash
+
+   $ ethereum-cli -datadir=<path_to_your_dir_with_ethereum.conf> stop
 
 Available command list:
 
 .. code:: bash
 
-   $ python ethereum-proxy.py -h
+   $ ethereum-cli -help
 
 Implemented JSON-RPC methods
 ----------------------------
 
+* getdifficulty
+* getbalance
+* settxfee
+* getblockcount
+* getbestblockhash
 * gettransaction
 * getblock
 * listaccounts

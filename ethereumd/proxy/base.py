@@ -44,7 +44,11 @@ class ProxyMethod:
         for category, funcs in categories.items():
             result += "== %s ==\n" % category
             for func in funcs:
-                result += func + '\n'
+                doc = getattr(ProxyMethod, func).__doc__
+                if not doc:
+                    result += func + '\n'
+                else:
+                    result += doc.split('\n')[0] + '\n'
             result += "\n"
         return result
 
@@ -69,12 +73,41 @@ class ProxyMethod:
 
     @Method.registry(Category.Wallet)
     async def settxfee(self, amount):
+        amount = float(amount)
         self._gas_amount = amount / 21000
         self._gas_price = ether_to_gwei(self._gas_amount)
         return True
 
     @Method.registry(Category.Wallet)
     async def listaccounts(self, minconf=1, include_watchonly=True):
+        """listaccounts ( minconf include_watchonly)
+
+DEPRECATED. Returns Object that has account names as keys, account balances as values.
+
+Arguments:
+1. minconf             (numeric, optional, default=1) Only include transactions with at least this many confirmations
+2. include_watchonly   (bool, optional, default=false) Include balances in watch-only addresses (see 'importaddress')
+
+Result:
+{                      (json object where keys are account names, and values are numeric balances
+  "account": x.xxx,  (numeric) The property name is the account name, and the value is the total balance for the account.
+  ...
+}
+
+Examples:
+
+List account balances where there at least 1 confirmation
+> ethereumd-cli listaccounts
+
+List account balances including zero confirmation transactions
+> ethereumd-cli listaccounts 0
+
+List account balances for 6 or more confirmations
+> ethereumd-cli listaccounts 6
+
+As json rpc call
+> curl -X POST -H 'Content-Type: application/json' -d '{"jsonrpc": "1.0", "id":"curltest", "method": "listaccounts", "params": [6] }'  http://127.0.0.01:9500/
+        """
         # NOTE: minconf nt work curently
         addresses = await self._call('eth_accounts')
         accounts = {}

@@ -16,7 +16,7 @@ setup(
     author='Bogdan Kurinnyi',
     author_email='bogdankurinnyi.dev1@gmail.com',
     url='https://github.com/DeV1doR/ethereumd-proxy',
-    py_modules=['ethereumd_proxy'],
+    py_modules=['ethereumd_cli'],
     license='MIT',
     packages=find_packages(),
     install_requires=[
@@ -25,9 +25,10 @@ setup(
         'APScheduler==3.3.1',
         'colorlog==2.10.0',
         'click==6.7',
+        'requests==2.9.1',
     ],
     entry_points='''
     [console_scripts]
-    ethereumd-cli=ethereumd_proxy:main
+    ethereumd-cli=ethereumd_cli:cli
     '''
 )

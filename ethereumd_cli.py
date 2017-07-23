@@ -1,8 +1,13 @@
 import os
 import sys
 import signal
+import json
+from collections import Mapping
+
+import requests
 import click
 
+from ethereumd.proxy.base import ProxyMethod
 from ethereumd_proxy import RPCServer
 
 
@@ -67,9 +72,14 @@ def _refine_pid(ctx, param, value):
 def check_if_server_runned(pid_file):
     try:
         with open(pid_file, "r") as fpid:
-            int(fpid.read())
+            pid = int(fpid.read())
     except (OSError, AttributeError):
-        pass
+        return
+
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return
     else:
         click.echo('Error: etereumd proxy already runned.')
         sys.exit(1)
@@ -80,13 +90,73 @@ def setup_server(config):
         return RPCServer(**config)
     except FileNotFoundError:
         click.echo('Error: unix socket not found. Is it geth started?')
-        sys.exit(1)
     except ConnectionRefusedError:
         click.echo('Error: geth node not started yet. Abort.')
-        sys.exit(1)
+
+    sys.exit(1)
 
 
-@click.group(context_settings=CONTEXT_SETTINGS, invoke_without_command=True)
+class AliasedGroup(click.Group):
+
+    def get_command(self, ctx, cmd_name):
+        rv = click.Group.get_command(self, ctx, cmd_name)
+        if rv is not None:
+            return rv
+
+        method = getattr(ProxyMethod, cmd_name, None)
+        if method:
+            return self._dynamic_rpc_cmd(ctx, method, cmd_name)
+        matches = [x for x in self.list_commands(ctx)
+                   if x.startswith(cmd_name)]
+        if not matches:
+            return None
+        elif len(matches) == 1:
+            return click.Group.get_command(self, ctx, matches[0])
+        ctx.fail('Too many matches: %s' % ', '.join(sorted(matches)))
+
+    def _dynamic_rpc_cmd(self, ctx, method, cmd_name):
+        @cli.command()
+        @click.argument('params', nargs=-1, type=click.UNPROCESSED)
+        @click.pass_context
+        def _rpc_result(ctx, params):
+            conf = ctx.parent.params['conf']
+            try:
+                response = requests.post(
+                    'http://%s:%s' % (conf['ethpconnect'], conf['ethpport']),
+                    data=json.dumps({
+                        'id': 'ethereum-cli',
+                        'method': cmd_name,
+                        'params': params,
+                    })
+                )
+            except requests.exceptions.ConnectionError:
+                click.echo('error: couldn\'t connect to server: '
+                           'unknown (code -1)')
+                click.echo('(make sure server is running and you are '
+                           'connecting to the correct RPC port)')
+                return
+            else:
+                response = response.json()
+                if response['error']:
+                    error = response['error']
+                    click.echo('error code: %s' % error['code'])
+                    if error['code'] == -1:
+                        click.echo('error message:\n%s' % method.__doc__)
+                    else:
+                        click.echo('error message:\n%s' % error['message'])
+                    sys.exit(1)
+                else:
+                    result = response['result']
+                    if isinstance(result, Mapping):
+                        result = json.dumps(response['result'], indent=4)
+                    elif isinstance(result, bool):
+                        result = 'true' if result else 'false'
+                    click.echo(result)
+        return click.Group.get_command(self, ctx, '_rpc_result')
+
+
+@click.command(context_settings=CONTEXT_SETTINGS, invoke_without_command=True,
+               cls=AliasedGroup)
 @click.option('-datadir', metavar='<dir>',
               type=click.Path(exists=True, allow_dash=True),
               required=True,
