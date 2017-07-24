@@ -17,7 +17,7 @@ setup(
     version=VERSION,
     description='Ethereum proxy to geth node',
     long_description=readme,
-    py_modules=['ethereumd_cli'],
+    py_modules=['ethereum_cli'],
     author='Bogdan Kurinnyi',
     author_email='bogdankurinnyi.dev1@gmail.com',
     url='https://github.com/DeV1doR/ethereumd-proxy',
@@ -26,6 +26,6 @@ setup(
     install_requires=reqs,
     entry_points='''
     [console_scripts]
-    ethereumd-cli=ethereumd_cli:cli
+    ethereum-cli=ethereum_cli:cli
     '''
 )

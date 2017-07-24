@@ -58,7 +58,12 @@ def read_config_file(filename: str) -> {}:
 
 
 def _refine_datadir(ctx, param, value):
-    return os.path.realpath(value)
+    if len(sys.argv) > 1:
+        return os.path.realpath(value)
+    else:
+        click.echo(cli.get_help(ctx))
+        click.echo('Error: too few parameters')
+        sys.exit(1)
 
 
 def _refine_conf(ctx, param, value):
@@ -71,9 +76,8 @@ def _refine_conf(ctx, param, value):
     try:
         settings = read_config_file(value)
     except FileNotFoundError:
-        click.echo('error: %s not found.' % value)
-        sys.exit(1)
-    else:
+        settings = {}
+    finally:
         if 'ipcconnect' in settings:
             settings['ipcconnect'] = os.path.join(datadir,
                                                   settings['ipcconnect'])
@@ -123,23 +127,40 @@ def setup_server(config):
 
 class AliasedGroup(click.Group):
 
+    def get_help(self, ctx):
+        return """Ethereum Core proxy v0.1
+
+Usage:
+  ethereumd-cli [options] <command> [params]  Send command to Ethereum Core proxy
+  ethereumd-cli [options] -named <command> [name=value] ... Send command to Ethereum Core proxy (with named arguments)
+  ethereumd-cli [options] help                List commands
+  ethereumd-cli [options] help <command>      Get help for a command
+
+Options:
+
+  -?
+       This help message
+
+  -conf=<file>
+       Specify configuration file (default: ethereum.conf)
+
+  -datadir=<dir>
+       Specify data directory
+
+  -daemon
+       Run in the background as a daemon and accept commands
+
+  -pid=<file>
+       Specify pid file (default: ethereum.pid)
+    """
+
     def get_command(self, ctx, cmd_name):
         rv = click.Group.get_command(self, ctx, cmd_name)
         if rv is not None:
             return rv
+        return self._dynamic_rpc_cmd(ctx, cmd_name)
 
-        method = getattr(ProxyMethod, cmd_name, None)
-        if method:
-            return self._dynamic_rpc_cmd(ctx, method, cmd_name)
-        matches = [x for x in self.list_commands(ctx)
-                   if x.startswith(cmd_name)]
-        if not matches:
-            return None
-        elif len(matches) == 1:
-            return click.Group.get_command(self, ctx, matches[0])
-        ctx.fail('Too many matches: %s' % ', '.join(sorted(matches)))
-
-    def _dynamic_rpc_cmd(self, ctx, method, cmd_name):
+    def _dynamic_rpc_cmd(self, ctx, cmd_name):
         @cli.command()
         @click.argument('params', nargs=-1, type=click.UNPROCESSED)
         @click.pass_context
@@ -166,6 +187,7 @@ class AliasedGroup(click.Group):
                     error = response['error']
                     click.echo('error code: %s' % error['code'])
                     if error['code'] == -1:
+                        method = getattr(ProxyMethod, cmd_name)
                         click.echo('error message:\n%s' % method.__doc__)
                     else:
                         click.echo('error message:\n%s' % error['message'])
@@ -212,7 +234,7 @@ def cli(ctx, conf, daemon, datadir, pid_file):
                 with open(pid_file, "w") as fpid:
                     fpid.write(str(os.getpid()))
             except OSError:
-                click.echo('Error: can\'nt store pid, abort.')
+                click.echo('error: can\'nt store pid, abort.')
                 sys.exit(1)
             click.echo('Ethereum proxy server starting')
             try:
@@ -232,16 +254,19 @@ def stop(ctx):
         with open(pid_file, "r") as fpid:
             pid = int(fpid.read())
     except OSError as e:
-        click.echo('Error: etereumd proxy not runned yet.')
+        click.echo('error: couldn\'t connect to server: '
+                   'unknown (code -1)')
+        click.echo('(make sure server is running and you are '
+                   'connecting to the correct RPC port)')
         sys.exit(1)
     except AttributeError:
-        click.echo('Error: invalid pid.')
+        click.echo('error: invalid pid.')
         sys.exit(1)
 
     try:
         os.kill(int(pid), signal.SIGTERM)
     except OSError:
-        click.echo('Error: etereumd proxy was already stoped.')
+        click.echo('error: etereumd proxy was already stoped.')
         sys.exit(1)
     finally:
         os.remove(pid_file)

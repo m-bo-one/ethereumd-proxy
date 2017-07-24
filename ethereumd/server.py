@@ -100,6 +100,15 @@ class RPCServer:
         try:
             result = (await getattr(self._proxy, data['method'])
                       (*data['params']))
+        except AttributeError as e:
+            return response.json({
+                'id': data['id'],
+                'result': None,
+                'error': {
+                    'message': 'Method not found',
+                    'code': -32601
+                }
+            })
         except TypeError as e:
             return response.json({
                 'id': data['id'],
