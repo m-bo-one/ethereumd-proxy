@@ -4,7 +4,7 @@ from enum import IntEnum
 from abc import abstractmethod
 
 from ..exceptions import BadResponseError
-from ..utils import hex_to_dec, wei_to_ether, ether_to_gwei
+from ..utils import hex_to_dec, wei_to_ether, ether_to_gwei, ether_to_wei
 
 
 GAS_AMOUNT = 21000
@@ -69,6 +69,7 @@ Result:
                 else:
                     result += doc.split('\n')[0] + '\n'
             result += "\n"
+        result = result.rstrip('\n')
         return result
 
     @Method.registry(Category.Blockchain)
@@ -308,6 +309,48 @@ Examples:
                                 wei_to_ether(tr_receipt['gasUsed']))
             trans_info['details'].append(from_)
         return trans_info
+
+    @Method.registry(Category.Wallet)
+    async def sendtoaddress(self, address, amount, comment=None,
+                            comment_to=None, subtractfeefromamount=False):
+        """sendtoaddress "address" amount ( "comment" "comment_to" subtractfeefromamount )
+
+Send an amount to a given address from coinbase.
+
+Arguments:
+1. "address"            (string, required) The ethereum address to send to.
+2. "amount"             (numeric or string, required) The amount in ETH to send. eg 0.1
+3. "comment"            (string, optional) DEPRECATED. A comment used to store what the transaction is for.
+                             This is not part of the transaction, just kept in your wallet.
+4. "comment_to"         (string, optional) DEPRECATED. A comment to store the name of the person or organization
+                             to which you're sending the transaction. This is not part of the
+                             transaction, just kept in your wallet.
+5. subtractfeefromamount  (boolean, optional, default=false) The fee will be deducted from the amount being sent.
+                             The recipient will receive less bitcoins than you enter in the amount field.
+
+Result:
+"txid"                  (string) The transaction id.
+
+Examples:
+> ethereum-cli sendtoaddress "0xc729d1e61e94e0029865d759327667a6abf0cdc5" 0.1
+> ethereum-cli sendtoaddress "0xc729d1e61e94e0029865d759327667a6abf0cdc5" 0.1 "donation" "seans outpost"
+> ethereum-cli sendtoaddress "0xc729d1e61e94e0029865d759327667a6abf0cdc5" 0.1 "" "" true
+> curl -X POST -H 'Content-Type: application/json' -d '{"jsonrpc": "1.0", "id":"curltest", "method": "sendtoaddress", "params": ["0xc729d1e61e94e0029865d759327667a6abf0cdc5", 0.1, "donation", "seans outpost"] }'  http://127.0.0.01:9500/
+        """
+        # TODO: Add subtractfeefromamount logic
+        # TODO: Add amount and address validation
+        # NOTE: Commented because of leaking, need to fix
+        # gas, coinbase_address = await asyncio.gather(
+        #     self._paytxfee_to_etherfee(),
+        #     self._call('eth_coinbase')
+        # )
+        # return await self._call('eth_sendTransaction', [
+        #     coinbase_address,  # from
+        #     address,  # to
+        #     hex(gas['gas_amount']),  # gas amount
+        #     hex(gas['gas_price']),  # gas price
+        #     hex(ether_to_wei(float(amount))),  # value
+        # ])
 
     @Method.registry(Category.Blockchain)
     async def getblockcount(self):

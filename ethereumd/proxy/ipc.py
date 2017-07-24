@@ -1,4 +1,4 @@
-import json
+import ujson
 import logging
 import asyncio
 
@@ -28,12 +28,12 @@ class IPCProxy(ProxyMethod):
         }
         try:
             with (await self._lock):
-                self._writer.write(json.dumps(data).encode('utf-8'))
+                self._writer.write(ujson.dumps(data).encode('utf-8'))
                 b = await self._reader.readline()
                 if not b:
                     self._log.error('_receive: no data, connection refused.')
                     raise ConnectionError
-                response = json.loads(b.decode('utf-8'))
+                response = ujson.loads(b.decode('utf-8'))
         except BrokenPipeError:
             self._log.error('_call: pipe broken, connection refused.')
             raise

@@ -1,4 +1,4 @@
-import json
+import ujson
 import logging
 import asyncio
 import aiohttp
@@ -42,7 +42,7 @@ class RPCProxy(ProxyMethod):
             scheme += 's'
         url = '{}://{}:{}'.format(scheme, self.host, self.port)
         try:
-            response = await self._make_request('post', url, json.dumps(data))
+            response = await self._make_request('post', url, ujson.dumps(data))
         except asyncio.TimeoutError as e:
             self._log.exception(e)
             return
