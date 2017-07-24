@@ -8,10 +8,10 @@ from sanic.server import serve
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 
-from ethereumd.proxy import RPCProxy, IPCProxy
-from ethereumd.poller import Poller
-from ethereumd.utils import create_default_logger
-from ethereumd.exceptions import BadResponseError
+from .proxy import RPCProxy, IPCProxy
+from .poller import Poller
+from .utils import create_default_logger
+from .exceptions import BadResponseError
 
 
 create_default_logger(logging.WARNING)
@@ -31,16 +31,9 @@ class SentryErrorHandler(ErrorHandler):
 
 class RPCServer:
 
-    def __init__(self,
-                 ethpconnect='127.0.0.1',
-                 ethpport=9575,
-                 rpcconnect='127.0.0.1',
-                 rpcport=8545,
-                 ipcconnect=None,
-                 blocknotify=None,
-                 walletnotify=None,
-                 alertnotify=None,
-                 *, loop=None):
+    def __init__(self, ethpconnect, ethpport, rpcconnect, rpcport,
+                 ipcconnect=None, blocknotify=None, walletnotify=None,
+                 alertnotify=None, *, loop=None):
         self._loop = loop or asyncio.get_event_loop()
         self._app = Sanic(__name__,
                           log_config=None,
@@ -147,6 +140,9 @@ class RPCServer:
             has_log=False)
         self._loop.run_until_complete(serve(**server_settings))
         try:
+            self._log.warning('Starting server on http://%s:%s/...',
+                              self._host, self._port)
             self._loop.run_forever()
         except Exception:
+            self._log.warning('Stoping server...')
             self._poller.stop()

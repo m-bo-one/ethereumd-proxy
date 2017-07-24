@@ -3,7 +3,6 @@ import logging
 import functools
 
 from .exceptions import BadResponseError
-# from .db import CacheLevelDB
 
 
 def alertnotify(func_or_none=None, *, exceptions=()):

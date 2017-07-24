@@ -8,10 +8,31 @@ import requests
 import click
 
 from ethereumd.proxy.base import ProxyMethod
-from ethereumd_proxy import RPCServer
+from ethereumd.server import RPCServer
 
 
-CONTEXT_SETTINGS = dict(help_option_names=['-h', '-help'])
+CONTEXT_SETTINGS = dict(help_option_names=['-?', '-h', '-help'])
+
+if sys.platform.startswith('linux'):
+    # linux
+    DEFAULT_DATADIR = '~/.ethereum'
+elif sys.platform.startswith('darwin'):
+    # MAC OS X
+    DEFAULT_DATADIR = '~/Library/Ethereum'
+elif sys.platform.startswith('win'):
+    # Windows
+    DEFAULT_DATADIR = '%APPDATA%\Ethereum'
+else:
+    # Other
+    click.error('error: operation system %s not suported' % sys.platform)
+    sys.exit(1)
+
+
+class ExpandedPath(click.Path):
+
+    def convert(self, value, *args, **kwargs):
+        value = os.path.expanduser(value)
+        return super(ExpandedPath, self).convert(value, *args, **kwargs)
 
 
 def read_config_file(filename: str) -> {}:
@@ -50,12 +71,16 @@ def _refine_conf(ctx, param, value):
     try:
         settings = read_config_file(value)
     except FileNotFoundError:
-        click.echo('%s not found.' % value)
+        click.echo('error: %s not found.' % value)
         sys.exit(1)
     else:
         if 'ipcconnect' in settings:
             settings['ipcconnect'] = os.path.join(datadir,
                                                   settings['ipcconnect'])
+        settings.setdefault('ethpconnect', '127.0.0.1')
+        settings.setdefault('ethpport', 9575)
+        settings.setdefault('rpcconnect', '127.0.0.1')
+        settings.setdefault('rpcport', 8545)
 
     return settings
 
@@ -158,9 +183,10 @@ class AliasedGroup(click.Group):
 @click.command(context_settings=CONTEXT_SETTINGS, invoke_without_command=True,
                cls=AliasedGroup)
 @click.option('-datadir', metavar='<dir>',
-              type=click.Path(exists=True, allow_dash=True),
-              required=True,
-              help='Specify data directory',
+              type=ExpandedPath(exists=True, allow_dash=True),
+              # linux
+              default=DEFAULT_DATADIR,
+              help='Specify data directory (default: %s)' % DEFAULT_DATADIR,
               callback=_refine_datadir)
 @click.option('-conf', metavar='<file>',
               default='ethereum.conf',
@@ -225,9 +251,3 @@ def stop(ctx):
 
 if __name__ == '__main__':
     cli()
-
-
-# TODO:
-# ~1) Add -daemon command for starting server;
-# ~2) Add -stop command for stoping server;
-# 3) Add "command" execution from cli;
