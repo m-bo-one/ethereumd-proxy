@@ -3,12 +3,12 @@
 ethereumd-proxy
 ===============
 
-Python client for go-ethereum node using the JSON-RPC or IPC interface.
+Proxy server for Ethereum node using JSON-RPC interface.
 
 Why?
 ----
-Mostly popular cryptocurrencies is a fork of bitcoin and all of them have own bitcoin core, just renamed and with the same api. Ethereum go hard by own way and made own api. This library is a proxy to ethereum node which implement api methods (if it possible) like in bitcoind. Also it have signals like blocknotify and walletnotify.
-This last two things you need to implement by yourself via polling. So ethereumd all this will do for you.
+Mostly popular cryptocurrencies usually are forks of Bitcoin and all of them support Bitcoin protocol for communication with their full nodes. Ethereum go hard by own way and made own API for that. This library is a proxy to Ethereum node which implement many API methods like in bitcoind. Also it have signals like blocknotify and walletnotify.
+All these features are implemented by ethereumd-proxy using polling and other techniques behind the scene.
 
 Installation
 ------------
@@ -122,5 +122,5 @@ TODO
     :alt: Release v0.1
 
 .. |license| image:: https://img.shields.io/badge/license-MIT-blue.svg
-    :target: https://opensource.org/licenses/MIT  
+    :target: https://opensource.org/licenses/MIT
     :alt: MIT License
