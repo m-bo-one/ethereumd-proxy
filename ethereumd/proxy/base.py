@@ -7,6 +7,9 @@ from ..exceptions import BadResponseError
 from ..utils import hex_to_dec, wei_to_ether, ether_to_gwei
 
 
+GAS_AMOUNT = 21000
+
+
 class Category(IntEnum):
     Blockchain = 0
     Control = 1
@@ -38,7 +41,23 @@ class Method:
 
 class ProxyMethod:
 
-    async def help(self):
+    async def help(self, command=None):
+        """"help ( "command" )
+
+List all commands, or get help for a specified command.
+
+Arguments:
+1. "command"     (string, optional) The command to get help on
+
+Result:
+"text"     (string) The help text
+        """
+        if command:
+            func = getattr(ProxyMethod, command, None)
+            if func:
+                return func.__doc__
+            return 'help: unknown command: %s' % command
+
         categories = Method.get_categories()
         result = ""
         for category, funcs in categories.items():
@@ -132,8 +151,8 @@ Result
 true|false        (boolean) Returns true if successful
 
 Examples:
-> ethereum-cli settxfee 0.00001
-> curl -X POST -H 'Content-Type: application/json' -d '{"jsonrpc": "1.0", "id":"curltest", "method": "settxfee", "params": [0.00001] }'  http://127.0.0.01:9500/
+> ethereum-cli settxfee 0.00042
+> curl -X POST -H 'Content-Type: application/json' -d '{"jsonrpc": "1.0", "id":"curltest", "method": "settxfee", "params": [0.00042] }'  http://127.0.0.01:9500/
         """
         amount = float(amount)
         if amount <= 0:
@@ -141,8 +160,7 @@ Examples:
                 'error': {'code': -3, 'message': 'Amount out of range'}
             })
         try:
-            self._gas_amount = amount / 21000
-            self._gas_price = ether_to_gwei(self._gas_amount)
+            self._paytxfee = amount
         except Exception:
             return False
         else:
@@ -293,7 +311,7 @@ Examples:
 
     @Method.registry(Category.Blockchain)
     async def getblockcount(self):
-        """"getblockcount
+        """getblockcount
 
 Returns the number of blocks in the longest blockchain.
 
@@ -309,7 +327,7 @@ Examples:
 
     @Method.registry(Category.Blockchain)
     async def getbestblockhash(self):
-        """"getbestblockhash
+        """getbestblockhash
 
 Returns the hash of the best (tip) block in the longest blockchain.
 
@@ -406,6 +424,16 @@ Examples:
         pass
 
     # UTILS METHODS
+
+    async def _paytxfee_to_etherfee(self):
+        if not hasattr(self, '_paytxfee'):
+            gas_price = await self._call('eth_gasPrice')
+        else:
+            gas_price = self._paytxfee / GAS_AMOUNT
+        return {
+            'gas_amount': GAS_AMOUNT,
+            'gas_price': ether_to_gwei(gas_price),
+        }
 
     async def _calculate_confirmations(self, response):
         return (hex_to_dec(await self._call('eth_blockNumber')) -
