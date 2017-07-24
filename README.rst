@@ -1,4 +1,4 @@
-|tag| |license|
+|release| |license|
 
 ethereumd-proxy
 ===============
@@ -7,19 +7,15 @@ Python client for go-ethereum node using the JSON-RPC or IPC interface.
 
 Why?
 ----
-
-Geth/parity does not have block and transaction notification via blocknotify and walletnotify.
-You need to implement by yourself this system via polling. This proxy already have
-similar implementation like in bitcoind and some possible methods for now via JSON-RPC.
+Mostly popular cryptocurrencies is a fork of bitcoin and all of them have own bitcoin core, just renamed and with the same api. Ethereum go hard by own way and made own api. This library is a proxy to ethereum node which implement api methods (if it possible) like in bitcoind. Also it have signals like blocknotify and walletnotify.
+This last two things you need to implement by yourself via polling. So ethereumd all this will do for you.
 
 Installation
 ------------
 
-Python 3.5+ required. (Ethereum is new technology so only new python version supporting).
+Python 3.5+ required.
 
-First you need Geth (1.6+) (for listening node):
-
-* Geth (https://github.com/ethereum/go-ethereum);
+First you need Geth/Parity or any other ethereum node (for listening). Tested on Geth 1.6.7 and used in production.
 
 After install dependencies:
 
@@ -27,17 +23,9 @@ After install dependencies:
 
    $ python setup.py install
 
-To start proxy server use:
-
-.. code:: bash
-
-   $ ethereum-cli -datadir=<path_to_your_dir_with_ethereum.conf> -daemon
-
-To stop server:
-
-.. code:: bash
-
-   $ ethereum-cli -datadir=<path_to_your_dir_with_ethereum.conf> stop
+Usage
+-----
+It is the same as bitcoin-cli. Except it is not a node runner, just simple proxy for listening actual node.
 
 Available command list:
 
@@ -45,22 +33,42 @@ Available command list:
 
    $ ethereum-cli -help
 
+To start proxy server use:
+
+.. code:: bash
+
+   $ ethereum-cli -datadir=<path_to_your_dir_with_node_and_ethereum.conf> -daemon
+
+To stop server:
+
+.. code:: bash
+
+   $ ethereum-cli -datadir=<path_to_your_dir_with_node_and_ethereum.conf> stop
+
+
+
 Implemented JSON-RPC methods
 ----------------------------
 
-* getdifficulty
+Wallet
+------
 * getbalance
 * settxfee
+* listaccounts
+* gettransaction
+* sendtoaddress (NOTE: 'coinbase' used here as from address now, need to think more about better solution)
+
+Blockchain
+----------
+* getdifficulty
 * getblockcount
 * getbestblockhash
-* gettransaction
 * getblock
-* listaccounts
 
-Planned add more methods as soon as posible.
+Planned add more methods as soon as possible. Read help of some method first before use!
 
-Sample ethereum.conf
---------------------
+Sample of ethereum.conf
+-----------------------
 
 .. code:: bash
 
@@ -72,13 +80,13 @@ Sample ethereum.conf
     #ethpconnect=127.0.0.1
 
     # Local server port for ethereumd-proxy RPC:
-    #ethpport=9575
+    #ethpport=9500
 
     #
-    # JSON-RPC options (for controlling a running Ethereum/geth process)
+    # JSON-RPC options (for controlling a running ethereum process)
     #
 
-    # You can use go-ethereum to send commands to Ethereum/geth
+    # You can use go-ethereum to send commands to ethereum
     # running on another host using this option:
     #rpcconnect=127.0.0.1
 
@@ -86,7 +94,6 @@ Sample ethereum.conf
     #rpcport=8545
 
     # Listen for RPC connections on this unix/ipc socket:
-    # NOTE: You can use relative path from -datadir
     #ipcconnect=~/.ethereum/geth/geth.ipc
 
     #
@@ -101,17 +108,18 @@ Sample ethereum.conf
     # TODO: add notification of long fork
     #alertnotify=
 
+Copy it to your datadir folder or use direct path to it.
+
 TODO
 ----
 * Add more RPC methods;
 * Add tests for every RPC method and signal;
 * Track orphaned blocks;
-* Add console command call;
 
 
-.. |tag| image:: https://img.shields.io/badge/tag-v0.1a-yellowgreen.svg
+.. |release| image:: https://img.shields.io/badge/release-v0.1-yellowgreen.svg
     :target: https://github.com/DeV1doR/ethereumd-proxy
-    :alt: Release v0.1a
+    :alt: Release v0.1
 
 .. |license| image:: https://img.shields.io/badge/license-MIT-blue.svg
     :target: https://opensource.org/licenses/MIT  

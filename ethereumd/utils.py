@@ -26,14 +26,14 @@ def ether_to_wei(ether):
     '''
     Convert ether to wei
     '''
-    return ether * 10**18
+    return int(ether * 10**18)
 
 
 def ether_to_gwei(ether):
     '''
     Convert ether to Gwei
     '''
-    return ether * 10**9
+    return int(ether * 10**9)
 
 
 def create_default_logger(level=logging.DEBUG):

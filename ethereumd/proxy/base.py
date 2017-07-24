@@ -34,9 +34,9 @@ class Method:
 
     @classmethod
     def get_categories(cls):
-        return dict((Category(int(key.replace('category_', ''))).name, funcs)
-                    for key, funcs in cls._r.items()
-                    if 'category_' in key)
+        for key, funcs in cls._r.items():
+            if 'category_' in key:
+                yield (Category(int(key.replace('category_', ''))).name, funcs)
 
 
 class ProxyMethod:
@@ -58,9 +58,8 @@ Result:
                 return func.__doc__
             return 'help: unknown command: %s' % command
 
-        categories = Method.get_categories()
         result = ""
-        for category, funcs in categories.items():
+        for category, funcs in Method.get_categories():
             result += "== %s ==\n" % category
             for func in funcs:
                 doc = getattr(ProxyMethod, func).__doc__
@@ -232,8 +231,6 @@ Result:
   "txid" : "transactionid",   (string) The transaction id.
   "time" : ttt,            (numeric) The transaction time in seconds since epoch (1 Jan 1970 GMT)
   "timereceived" : ttt,    (numeric) The time received in seconds since epoch (1 Jan 1970 GMT)
-  "bip125-replaceable": "yes|no|unknown",  (string) Whether this transaction could be replaced due to BIP125 (replace-by-fee);
-                                                   may be unknown for unconfirmed transactions not in the mempool
   "details" : [
     {
       "account" : "accountname",      (string) DEPRECATED. The account name involved in the transaction, can be "" for the default account.
@@ -264,7 +261,10 @@ Examples:
         )
         if transaction is None:
             raise BadResponseError({
-                'error': {'code': -5, 'message': 'Invalid or non-wallet transaction id'}
+                'error': {
+                    'code': -5,
+                    'message': 'Invalid or non-wallet transaction id'
+                }
             })
 
         trans_info = {
@@ -339,18 +339,17 @@ Examples:
         """
         # TODO: Add subtractfeefromamount logic
         # TODO: Add amount and address validation
-        # NOTE: Commented because of leaking, need to fix
-        # gas, coinbase_address = await asyncio.gather(
-        #     self._paytxfee_to_etherfee(),
-        #     self._call('eth_coinbase')
-        # )
-        # return await self._call('eth_sendTransaction', [
-        #     coinbase_address,  # from
-        #     address,  # to
-        #     hex(gas['gas_amount']),  # gas amount
-        #     hex(gas['gas_price']),  # gas price
-        #     hex(ether_to_wei(float(amount))),  # value
-        # ])
+        gas, coinbase_address = await asyncio.gather(
+            self._paytxfee_to_etherfee(),
+            self._call('eth_coinbase')
+        )
+        return await self._call('eth_sendTransaction', [{
+            'from': coinbase_address,  # from ???
+            'to': address,  # to
+            'gas': hex(gas['gas_amount']),  # gas amount
+            'gasPrice': hex(gas['gas_price']),  # gas price
+            'value': hex(ether_to_wei(float(amount))),  # value
+        }])
 
     @Method.registry(Category.Blockchain)
     async def getblockcount(self):
@@ -406,7 +405,7 @@ Result (for verbose = true):
   "confirmations" : n,   (numeric) The number of confirmations, or -1 if the block is not on the main chain
   "size" : n,            (numeric) The block size
   "strippedsize" : n,    (numeric) The block size excluding witness data
-  "weight" : n           (numeric) The block weight as defined in BIP 141
+  "weight" : n           (numeric) The block weight
   "height" : n,          (numeric) The block height or index
   "version" : n,         (numeric) The block version
   "versionHex" : "00000000", (string) The block version formatted in hexadecimal
@@ -472,7 +471,7 @@ Examples:
         try:
             gas_price = self._paytxfee / GAS_AMOUNT
         except AttributeError:
-            gas_price = await self._call('eth_gasPrice')
+            gas_price = hex_to_dec(await self._call('eth_gasPrice'))
         finally:
             return {
                 'gas_amount': GAS_AMOUNT,

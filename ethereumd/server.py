@@ -1,5 +1,6 @@
 import logging
 import asyncio
+import os
 
 from sanic import Sanic, response
 from sanic.handlers import ErrorHandler
@@ -92,7 +93,12 @@ class RPCServer:
 
     @property
     def _greeting(self):
-        with open('motd', 'r') as motd:
+        try:
+            import ethereum_cli  # noqa
+        except ImportError:
+            return
+        dirname = os.path.join(os.path.dirname(ethereum_cli.__file__), 'motd')
+        with open(dirname) as motd:
             return '\033[91m' + motd.read() + '\033[0m'
 
     async def handler_index(self, request):
@@ -138,7 +144,7 @@ class RPCServer:
 
     def run(self):
         self.before_server_start()
-        # print(self._greeting)
+        self._log.info(self._greeting)
         server_settings = self._app._helper(
             host=self._host,
             port=self._port,

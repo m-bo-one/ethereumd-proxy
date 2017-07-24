@@ -28,7 +28,7 @@ def alertnotify(func_or_none=None, *, exceptions=()):
                 )
                 stdout, _ = await cmdp.communicate()
                 if stdout:
-                    logging.debug('ALERTNOTIFY: %s', stdout)
+                    logging.warning('ALERTNOTIFY: %s', stdout)
                 logging.warning('Send alertnotify error msg "%s"', err_msg)
         return wrapper
 
@@ -36,7 +36,7 @@ def alertnotify(func_or_none=None, *, exceptions=()):
 
 
 class Poller:
-    """Poller to geth RPC.
+    """Poller to RPC.
     """
 
     _pollFilter = {
@@ -140,7 +140,7 @@ class Poller:
             )
             stdout, _ = await cmdp.communicate()
             if stdout:
-                self._log.debug('%s: %s', cmd_name.upper(), stdout)
+                self._log.warning('%s: %s', cmd_name.upper(), stdout)
             return cmdp
         except Exception as e:
             self._log.error('%s command exec error.', cmd_name)

@@ -15,7 +15,7 @@ reqs = [str(ir.req) for ir in install_reqs]
 setup(
     name='ethereumd-proxy',
     version=VERSION,
-    description='Ethereum proxy to geth node',
+    description='Ethereum proxy to node on official RPC',
     long_description=readme,
     py_modules=['ethereum_cli'],
     author='Bogdan Kurinnyi',

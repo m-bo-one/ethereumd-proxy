@@ -24,15 +24,25 @@ elif sys.platform.startswith('win'):
     DEFAULT_DATADIR = '%APPDATA%\Ethereum'
 else:
     # Other
-    click.error('error: operation system %s not suported' % sys.platform)
+    click.echo('error: operation system %s not suported' % sys.platform)
     sys.exit(1)
 
 
-class ExpandedPath(click.Path):
+class DatadirPath(click.Path):
 
-    def convert(self, value, *args, **kwargs):
-        value = os.path.expanduser(value)
-        return super(ExpandedPath, self).convert(value, *args, **kwargs)
+    def convert(self, value, param, ctx):
+        if len(sys.argv) > 1:
+            value = os.path.expanduser(value)
+            if (param.name == 'datadir' and not os.path.exists(value) and
+                    value == os.path.expanduser(DEFAULT_DATADIR)):
+                click.echo('Error: default dir %s not found. '
+                           'Is it node installed?' % DEFAULT_DATADIR)
+                sys.exit(1)
+            return super(DatadirPath, self).convert(value, param, ctx)
+
+        click.echo(cli.get_help(ctx))
+        click.echo('Error: too few parameters')
+        sys.exit(1)
 
 
 def read_config_file(filename: str) -> {}:
@@ -58,12 +68,7 @@ def read_config_file(filename: str) -> {}:
 
 
 def _refine_datadir(ctx, param, value):
-    if len(sys.argv) > 1:
-        return os.path.realpath(value)
-    else:
-        click.echo(cli.get_help(ctx))
-        click.echo('Error: too few parameters')
-        sys.exit(1)
+    return os.path.realpath(value)
 
 
 def _refine_conf(ctx, param, value):
@@ -76,13 +81,14 @@ def _refine_conf(ctx, param, value):
     try:
         settings = read_config_file(value)
     except FileNotFoundError:
+        click.echo('Note: conf file not found, use default properties.')
         settings = {}
     finally:
         if 'ipcconnect' in settings:
             settings['ipcconnect'] = os.path.join(datadir,
                                                   settings['ipcconnect'])
         settings.setdefault('ethpconnect', '127.0.0.1')
-        settings.setdefault('ethpport', 9575)
+        settings.setdefault('ethpport', 9500)
         settings.setdefault('rpcconnect', '127.0.0.1')
         settings.setdefault('rpcport', 8545)
 
@@ -118,9 +124,9 @@ def setup_server(config):
     try:
         return RPCServer(**config)
     except FileNotFoundError:
-        click.echo('Error: unix socket not found. Is it geth started?')
+        click.echo('Error: unix socket not found. Is it node started?')
     except ConnectionRefusedError:
-        click.echo('Error: geth node not started yet. Abort.')
+        click.echo('Error: node not started yet. Abort.')
 
     sys.exit(1)
 
@@ -205,7 +211,7 @@ Options:
 @click.command(context_settings=CONTEXT_SETTINGS, invoke_without_command=True,
                cls=AliasedGroup)
 @click.option('-datadir', metavar='<dir>',
-              type=ExpandedPath(exists=True, allow_dash=True),
+              type=DatadirPath(exists=True, allow_dash=True),
               # linux
               default=DEFAULT_DATADIR,
               help='Specify data directory (default: %s)' % DEFAULT_DATADIR,
@@ -223,7 +229,7 @@ Options:
               callback=_refine_pid)
 @click.pass_context
 def cli(ctx, conf, daemon, datadir, pid_file):
-    """Ethereum Core proxy to geth node."""
+    """Ethereum Core proxy to ethereum node."""
     os.chdir(datadir)
     if daemon and ctx.invoked_subcommand is None:
         check_if_server_runned(pid_file)

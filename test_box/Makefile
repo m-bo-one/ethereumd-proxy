@@ -41,6 +41,7 @@ account:
 
 start:
 	mkdir -p $(DATADIR1)
+	cp ethereum.conf $(DATADIR1)
 	@if [ "$(shell ls -A $(KEYSTORE1))" = "" ]; then\
 		$(MAKE) account;\
 	fi
