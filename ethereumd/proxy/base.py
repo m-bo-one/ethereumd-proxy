@@ -469,14 +469,15 @@ Examples:
     # UTILS METHODS
 
     async def _paytxfee_to_etherfee(self):
-        if not hasattr(self, '_paytxfee'):
-            gas_price = await self._call('eth_gasPrice')
-        else:
+        try:
             gas_price = self._paytxfee / GAS_AMOUNT
-        return {
-            'gas_amount': GAS_AMOUNT,
-            'gas_price': ether_to_gwei(gas_price),
-        }
+        except AttributeError:
+            gas_price = await self._call('eth_gasPrice')
+        finally:
+            return {
+                'gas_amount': GAS_AMOUNT,
+                'gas_price': ether_to_gwei(gas_price),
+            }
 
     async def _calculate_confirmations(self, response):
         return (hex_to_dec(await self._call('eth_blockNumber')) -

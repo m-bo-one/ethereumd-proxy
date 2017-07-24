@@ -131,10 +131,10 @@ class AliasedGroup(click.Group):
         return """Ethereum Core proxy v0.1
 
 Usage:
-  ethereumd-cli [options] <command> [params]  Send command to Ethereum Core proxy
-  ethereumd-cli [options] -named <command> [name=value] ... Send command to Ethereum Core proxy (with named arguments)
-  ethereumd-cli [options] help                List commands
-  ethereumd-cli [options] help <command>      Get help for a command
+  ethereum-cli [options] <command> [params]  Send command to Ethereum Core proxy
+  ethereum-cli [options] -named <command> [name=value] ... Send command to Ethereum Core proxy (with named arguments)
+  ethereum-cli [options] help                List commands
+  ethereum-cli [options] help <command>      Get help for a command
 
 Options:
 
