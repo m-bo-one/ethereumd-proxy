@@ -3,7 +3,7 @@
 ethereumd-proxy
 ===============
 
-Proxy server for Ethereum node using JSON-RPC interface.
+Proxy client-server for Ethereum node using JSON-RPC interface.
 
 Why?
 ----
