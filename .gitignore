@@ -4,5 +4,8 @@ __pycache__/
 build/
 ethdsync/
 node/
+build/
+dist/
+*.egg-info
 test_box/bitcoin-testnet-box/
 test_box/testnet/

@@ -3,8 +3,6 @@ import logging
 import functools
 
 from .exceptions import BadResponseError
-from .conf import config
-# from .db import CacheLevelDB
 
 
 def alertnotify(func_or_none=None, *, exceptions=()):
@@ -14,15 +12,15 @@ def alertnotify(func_or_none=None, *, exceptions=()):
 
     def decorator(func):
         @functools.wraps(func)
-        async def wrapper(*args, **kwargs):
-            if 'alertnotify' not in config:
-                return await func(*args, **kwargs)
+        async def wrapper(self, *args, **kwargs):
+            if self._server.has_alertnotify:
+                return await func(self, *args, **kwargs)
 
             try:
-                return await func(*args, **kwargs)
+                return await func(self, *args, **kwargs)
             except exceptions as e:
                 err_msg = 'Error from: %s' % e
-                cmd = config['alertnotify'] % err_msg
+                cmd = self._server.alertnotify % err_msg
                 cmdp = await asyncio.create_subprocess_exec(
                     *cmd.split(),
                     stdout=asyncio.subprocess.PIPE,
@@ -30,7 +28,7 @@ def alertnotify(func_or_none=None, *, exceptions=()):
                 )
                 stdout, _ = await cmdp.communicate()
                 if stdout:
-                    logging.debug('ALERTNOTIFY: %s', stdout)
+                    logging.warning('ALERTNOTIFY: %s', stdout)
                 logging.warning('Send alertnotify error msg "%s"', err_msg)
         return wrapper
 
@@ -38,7 +36,7 @@ def alertnotify(func_or_none=None, *, exceptions=()):
 
 
 class Poller:
-    """Poller to geth RPC.
+    """Poller to RPC.
     """
 
     _pollFilter = {
@@ -46,8 +44,9 @@ class Poller:
         'pending': 'eth_newPendingTransactionFilter',
     }
 
-    def __init__(self, proxy, *, loop=None):
+    def __init__(self, server, proxy, *, loop=None):
         self._log = logging.getLogger('poller')
+        self._server = server
         self._proxy = proxy
         self._loop = loop or asyncio.get_event_loop()
         # self._db = CacheLevelDB(config['db'], loop=self._loop)
@@ -125,8 +124,8 @@ class Poller:
 
     async def _exec_command(self, cmd_name, data):
         try:
-            cmd = config[cmd_name] % data
-        except KeyError:
+            cmd = getattr(self._server, '_%s' % cmd_name) % data
+        except AttributeError:
             cmd = None
             self._log.warning('%s command not found', cmd_name)
 
@@ -141,7 +140,7 @@ class Poller:
             )
             stdout, _ = await cmdp.communicate()
             if stdout:
-                self._log.debug('%s: %s', cmd_name.upper(), stdout)
+                self._log.warning('%s: %s', cmd_name.upper(), stdout)
             return cmdp
         except Exception as e:
             self._log.error('%s command exec error.', cmd_name)

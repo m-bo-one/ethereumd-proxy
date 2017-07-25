@@ -1,8 +1,7 @@
-ethjsonrpc==0.3.0
 sanic==0.5.4
-ethereum==2.0.4
-AoikLiveReload==0.1.0
 aiohttp==2.2.3
 APScheduler==3.3.1
 colorlog==2.10.0
-#plyvel==0.9
+click==6.7
+requests==2.9.1
+ujson==1.35
