@@ -144,7 +144,8 @@ class RPCServer:
 
     def run(self):
         self.before_server_start()
-        self._log.info(self._greeting)
+        # TODO: Fix it
+        # self._log.info(self._greeting)
         server_settings = self._app._helper(
             host=self._host,
             port=self._port,
