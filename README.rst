@@ -110,6 +110,44 @@ Sample of ethereum.conf
 
 Copy it to your datadir folder or use direct path to it.
 
+Changes
+=======
+
+# TODO
+
+0.1.1 (2017-00-00)
+------------------
+
+* Added tests;
+
+0.1 (2017-07-25)
+----------------
+
+* Added cli for proxy RPC server;
+* Some bug fixes in API;
+* Added new RPC methods:
+
+  * getbalance;
+  * settxfee;
+  * listaccounts;
+  * gettransaction;
+  * getdifficulty;
+  * getblockcount;
+  * getbestblockhash;
+  * getblock;
+  * sendtoaddress;
+
+
+0.1a (2017-07-22)
+-----------------
+
+* Initial release
+* Added RPC methods:
+
+  * gettransaction;
+  * getblock;
+  * listaccounts;
+
 TODO
 ----
 * Add more RPC methods;
@@ -117,12 +155,12 @@ TODO
 * Track orphaned blocks;
 
 
-.. |release| image:: https://img.shields.io/badge/release-v0.1.1-yellowgreen.svg
+.. |release| image:: https://badge.fury.io/gh/DeV1doR%2Fethereumd-proxy.svg
     :target: https://github.com/DeV1doR/ethereumd-proxy
     :alt: Release
 
-.. |coverage| image:: https://img.shields.io/badge/coverage-27%-red.svg
-    :target: https://github.com/DeV1doR/ethereumd-proxy
+.. |coverage| image:: https://codecov.io/gh/DeV1doR/ethereumd-proxy/branch/master/graph/badge.svg
+    :target: https://codecov.io/gh/DeV1doR/ethereumd-proxy
     :alt: Test coverage
 
 .. |license| image:: https://img.shields.io/badge/license-MIT-blue.svg
