@@ -13,3 +13,4 @@ tests/box/testnet/
 .tox/
 .cache/
 .coverage
+coverage.*
