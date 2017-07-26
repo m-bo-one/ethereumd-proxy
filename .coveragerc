@@ -1,0 +1,8 @@
+[run]
+branch=True
+source=ethereumd
+omit=
+  setup.py
+
+[report]
+precision = 1

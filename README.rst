@@ -1,4 +1,4 @@
-|release| |license|
+|release| |coverage| |license|
 
 ethereumd-proxy
 ===============
@@ -117,9 +117,13 @@ TODO
 * Track orphaned blocks;
 
 
-.. |release| image:: https://img.shields.io/badge/release-v0.1-yellowgreen.svg
+.. |release| image:: https://img.shields.io/badge/release-v0.1.1-yellowgreen.svg
     :target: https://github.com/DeV1doR/ethereumd-proxy
-    :alt: Release v0.1
+    :alt: Release
+
+.. |coverage| image:: https://img.shields.io/badge/coverage-27%-red.svg
+    :target: https://github.com/DeV1doR/ethereumd-proxy
+    :alt: Test coverage
 
 .. |license| image:: https://img.shields.io/badge/license-MIT-blue.svg
     :target: https://opensource.org/licenses/MIT
