@@ -1,20 +1,20 @@
 # -*- coding: utf-8 -*-
 from setuptools import find_packages, setup
-from pip.req import parse_requirements
+from functools import reduce
 
-
-VERSION = '0.1.dev'
 
 with open('README.rst', 'rb') as f:
     readme = f.read().decode('utf-8')
 
 
-install_reqs = parse_requirements('requirements.txt', session='hack')
-reqs = [str(ir.req) for ir in install_reqs]
+def get_version():
+    import ethereumd
+    return reduce(lambda x, y: "{0}.{1}".format(x, y), ethereumd.__version__)
+
 
 setup(
     name='ethereumd-proxy',
-    version=VERSION,
+    version=get_version(),
     description='Ethereum proxy to node on official RPC',
     long_description=readme,
     py_modules=['ethereum_cli'],
@@ -23,7 +23,16 @@ setup(
     url='https://github.com/DeV1doR/ethereumd-proxy',
     license='MIT',
     packages=find_packages(),
-    install_requires=reqs,
+    install_requires=[
+        'sanic==0.5.4',
+        'aiohttp==2.2.3',
+        'APScheduler==3.3.1',
+        'colorlog==2.10.0',
+        'click==6.7',
+        'requests==2.9.1',
+        'ujson==1.35',
+        'pytest-asyncio==0.6.0',
+    ],
     entry_points='''
     [console_scripts]
     ethereum-cli=ethereum_cli:cli

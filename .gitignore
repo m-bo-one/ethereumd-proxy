@@ -1,4 +1,6 @@
 *.pyc
+*.pyd
+*.so
 *.log
 __pycache__/
 build/
@@ -7,5 +9,7 @@ node/
 build/
 dist/
 *.egg-info
-test_box/bitcoin-testnet-box/
-test_box/testnet/
+tests/box/testnet/
+.tox/
+.cache/
+.coverage
