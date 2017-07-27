@@ -31,7 +31,6 @@ setup(
         'click==6.7',
         'requests==2.9.1',
         'ujson==1.35',
-        'pytest-asyncio==0.6.0',
     ],
     entry_points='''
     [console_scripts]
