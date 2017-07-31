@@ -113,12 +113,10 @@ Copy it to your datadir folder or use direct path to it.
 Changes
 =======
 
-# TODO
-
-0.1.1 (2017-00-00)
+0.1.1 (2017-07-31)
 ------------------
 
-* Added tests;
+* Added tests and codecov;
 
 0.1 (2017-07-25)
 ----------------
