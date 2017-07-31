@@ -155,7 +155,7 @@ TODO
 * Track orphaned blocks;
 
 
-.. |release| image:: https://badge.fury.io/gh/DeV1doR%2Fethereumd-proxy.svg
+.. |release| image:: https://img.shields.io/badge/release-v0.1.1-brightgreen.svg
     :target: https://github.com/DeV1doR/ethereumd-proxy
     :alt: Release
 

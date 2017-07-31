@@ -8,6 +8,8 @@ from ..utils import hex_to_dec, wei_to_ether, ether_to_gwei, ether_to_wei
 
 
 GAS_AMOUNT = 21000
+GAS_PRICE = 20  # Gwei
+DEFAUT_FEE = wei_to_ether(ether_to_gwei(GAS_PRICE) * GAS_AMOUNT)
 
 
 class Category(IntEnum):
