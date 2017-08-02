@@ -25,7 +25,7 @@ class FakePoller(Poller):
 
 class TestPoller(BaseTestRunner):
 
-    run_with = ['proxy', 'poller']
+    run_with = ['rpc', 'poller']
 
     @pytest.mark.asyncio
     async def test_alertnotify_valid_func_without_errors(self):
@@ -76,7 +76,7 @@ class TestPoller(BaseTestRunner):
     @pytest.mark.asyncio
     async def test_call_blocknotify_and_has_block(self):
         with patch('ethereumd.poller.Poller.poll'):
-            poller = Poller(self.proxy, cmds={'blocknotify': 'echo "%s"'})
+            poller = Poller(self.rpc_proxy, cmds={'blocknotify': 'echo "%s"'})
         with patch.object(RPCProxy, '_call', side_effect=fake_call()):
             with patch.object(Poller, '_exec_command',
                               side_effect=lambda x, y: None) as exec_mock:
@@ -87,7 +87,7 @@ class TestPoller(BaseTestRunner):
     @pytest.mark.asyncio
     async def test_call_blocknotify_and_has_no_block(self):
         with patch('ethereumd.poller.Poller.poll'):
-            poller = Poller(self.proxy, cmds={'blocknotify': 'echo "%s"'})
+            poller = Poller(self.rpc_proxy, cmds={'blocknotify': 'echo "%s"'})
         with patch.object(RPCProxy, '_call',
                           side_effect=fake_call(['-eth_getFilterChanges'])):
             with patch.object(Poller, '_exec_command',
@@ -99,7 +99,7 @@ class TestPoller(BaseTestRunner):
     @pytest.mark.asyncio
     async def test_call_walletnotify_and_has_trans(self):
         with patch('ethereumd.poller.Poller.poll'):
-            poller = Poller(self.proxy, cmds={'walletnotify': 'echo "%s"'})
+            poller = Poller(self.rpc_proxy, cmds={'walletnotify': 'echo "%s"'})
         with patch.object(RPCProxy, '_call', side_effect=fake_call()):
             with patch.object(Poller, '_exec_command',
                               side_effect=lambda x, y: None) as exec_mock:
@@ -110,7 +110,7 @@ class TestPoller(BaseTestRunner):
     @pytest.mark.asyncio
     async def test_call_walletnotify_and_has_no_trans(self):
         with patch('ethereumd.poller.Poller.poll'):
-            poller = Poller(self.proxy, cmds={'walletnotify': 'echo "%s"'})
+            poller = Poller(self.rpc_proxy, cmds={'walletnotify': 'echo "%s"'})
         with patch.object(RPCProxy, '_call',
                           side_effect=fake_call(['-eth_getFilterChanges'])):
             with patch.object(Poller, '_exec_command',
@@ -122,29 +122,29 @@ class TestPoller(BaseTestRunner):
     @pytest.mark.asyncio
     async def test_method_has_command(self):
         with patch('ethereumd.poller.Poller.poll'):
-            poller = Poller(self.proxy)
+            poller = Poller(self.rpc_proxy)
             assert poller.has_blocknotify is False
             assert poller.has_walletnotify is False
             assert poller.has_alertnotify is False
 
-            poller = Poller(self.proxy, cmds={'blocknotify': 'echo "%s"'})
+            poller = Poller(self.rpc_proxy, cmds={'blocknotify': 'echo "%s"'})
             assert poller.has_blocknotify is True
             assert poller.has_walletnotify is False
             assert poller.has_alertnotify is False
 
-            poller = Poller(self.proxy, cmds={'walletnotify': 'echo "%s"'})
+            poller = Poller(self.rpc_proxy, cmds={'walletnotify': 'echo "%s"'})
             assert poller.has_blocknotify is False
             assert poller.has_walletnotify is True
             assert poller.has_alertnotify is False
 
-            poller = Poller(self.proxy, cmds={'alertnotify': 'echo "%s"'})
+            poller = Poller(self.rpc_proxy, cmds={'alertnotify': 'echo "%s"'})
             assert poller.has_blocknotify is False
             assert poller.has_walletnotify is False
             assert poller.has_alertnotify is True
 
-            poller = Poller(self.proxy, cmds={'blocknotify': 'echo "%s"',
-                                              'walletnotify': 'echo "%s"',
-                                              'alertnotify': 'echo "%s"'})
+            poller = Poller(self.rpc_proxy, cmds={'blocknotify': 'echo "%s"',
+                                                  'walletnotify': 'echo "%s"',
+                                                  'alertnotify': 'echo "%s"'})
             assert poller.has_blocknotify is True
             assert poller.has_walletnotify is True
             assert poller.has_alertnotify is True
@@ -152,7 +152,7 @@ class TestPoller(BaseTestRunner):
     @pytest.mark.asyncio
     async def test_method__is_account_trans_and_trans_exists(self):
         with patch('ethereumd.poller.Poller.poll'):
-            poller = Poller(self.proxy)
+            poller = Poller(self.rpc_proxy)
 
         with patch.object(RPCProxy, '_call', side_effect=fake_call()):
             txid = '0x9c864dd0e7fdcfb3bd7197020ac311cbacef1aa29b49791223427bbedb6d36ad'
@@ -162,7 +162,7 @@ class TestPoller(BaseTestRunner):
     @pytest.mark.asyncio
     async def test_method__is_account_trans_and_trans_not_exists(self):
         with patch('ethereumd.poller.Poller.poll'):
-            poller = Poller(self.proxy)
+            poller = Poller(self.rpc_proxy)
 
         with patch.object(RPCProxy, '_call', side_effect=fake_call('-')):
             txid = '0x9c864dd0e7fdcfb3bd7197020ac311cbacef1aa29b49791223427bbedb6d36ad'
@@ -172,7 +172,7 @@ class TestPoller(BaseTestRunner):
     @pytest.mark.asyncio
     async def test_method__build_filter_which_exists(self):
         with patch('ethereumd.poller.Poller.poll'):
-            poller = Poller(self.proxy)
+            poller = Poller(self.rpc_proxy)
 
         with patch.object(RPCProxy, '_call', side_effect=fake_call()):
             # latest filter for blocks
@@ -192,7 +192,7 @@ class TestPoller(BaseTestRunner):
     @pytest.mark.asyncio
     async def test_method__build_filter_which_not_exists(self):
         with patch('ethereumd.poller.Poller.poll'):
-            poller = Poller(self.proxy)
+            poller = Poller(self.rpc_proxy)
 
         with patch.object(RPCProxy, '_call', side_effect=fake_call('-')):
             with pytest.raises(KeyError) as excinfo:
@@ -202,7 +202,7 @@ class TestPoller(BaseTestRunner):
     @pytest.mark.asyncio
     async def test_method__poll_with_reconnect_when_droped(self):
         with patch('ethereumd.poller.Poller.poll'):
-            poller = Poller(self.proxy)
+            poller = Poller(self.rpc_proxy)
 
         with patch.object(RPCProxy, '_call',
                           side_effect=return_once(BadResponseError,
@@ -213,7 +213,7 @@ class TestPoller(BaseTestRunner):
     @pytest.mark.asyncio
     async def test_method__exec_command_exist_cmd(self):
         with patch('ethereumd.poller.Poller.poll'):
-            poller = Poller(self.proxy, cmds={'alernotify': 'echo "%s"'})
+            poller = Poller(self.rpc_proxy, cmds={'alernotify': 'echo "%s"'})
 
         cmd_result = await poller._exec_command('alernotify', 'Some error')
         assert cmd_result is True
@@ -221,7 +221,7 @@ class TestPoller(BaseTestRunner):
     @pytest.mark.asyncio
     async def test_method__exec_command_some_error(self):
         with patch('ethereumd.poller.Poller.poll'):
-            poller = Poller(self.proxy, cmds={'alernotify': 'echo "%s"'})
+            poller = Poller(self.rpc_proxy, cmds={'alernotify': 'echo "%s"'})
 
         with patch('asyncio.create_subprocess_exec') as sp_mock:
             sp_mock.side_effect = RuntimeError
@@ -231,7 +231,7 @@ class TestPoller(BaseTestRunner):
     @pytest.mark.asyncio
     async def test_method__exec_command_no_such_cmd(self):
         with patch('ethereumd.poller.Poller.poll'):
-            poller = Poller(self.proxy)
+            poller = Poller(self.rpc_proxy)
 
         cmd_result = await poller._exec_command('alernotify', 'Some error')
         assert cmd_result is False

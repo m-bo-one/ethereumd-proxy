@@ -4,13 +4,14 @@ import time
 from urllib.request import urlopen
 from urllib.error import URLError
 
-from ethereumd.proxy import RPCProxy
+from ethereumd.proxy import RPCProxy, IPCProxy
 
 
 NODE_PORT = 30375
 RPC_PORT = 12523
 BOX_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                        'box')
+UNIX_PATH = os.path.join(BOX_DIR, 'testnet', 'geth.ipc')
 
 
 def is_hex(s):
@@ -23,7 +24,7 @@ def is_hex(s):
 
 class BaseTestRunner:
 
-    run_with = []  # available: node, proxy
+    run_with = []  # available: node, rpc, ipc
 
     @staticmethod
     def _start_node():
@@ -56,8 +57,14 @@ class BaseTestRunner:
         if 'node' in cls.run_with:
             cls._start_node()
             cls._wait_until_node_start()
-        if 'proxy' in cls.run_with:
-            cls.proxy = RPCProxy(port=RPC_PORT)
+
+        cls.proxies = []
+        if 'rpc' in cls.run_with:
+            cls.rpc_proxy = RPCProxy(port=RPC_PORT)
+            cls.proxies.append(cls.rpc_proxy)
+        if 'ipc' in cls.run_with:
+            cls.ipc_proxy = IPCProxy(UNIX_PATH)
+            cls.proxies.append(cls.ipc_proxy)
 
     @classmethod
     def teardown_class(cls):

@@ -1,10 +1,17 @@
+import os
+import base64
 from ethereumd.utils import (
-    hex_to_dec, wei_to_ether, ether_to_wei, ether_to_gwei)
+    homify, hex_to_dec, wei_to_ether, ether_to_wei, ether_to_gwei,
+    create_default_logger)
 
 from .base import BaseTestRunner
 
 
 class TestUtils(BaseTestRunner):
+
+    def test_homify(self):
+        home = os.path.expanduser('~')
+        assert home in homify('~/test')
 
     def test_hex_to_dec(self):
         result = hex_to_dec('-0x8')  # -8
@@ -37,3 +44,12 @@ class TestUtils(BaseTestRunner):
         assert result == 10 ** 9  # 10 in 9 step Gwei
         result = ether_to_gwei(10 ** -9)
         assert result == 1  # 1 Gwei
+
+    def test_create_default_logger(self):
+        efname = base64.b64encode(b'test_create_default_logger') \
+            .decode('utf-8')
+        fname = '/tmp/%s.log.test' % efname
+        create_default_logger(fname=fname)
+        assert os.path.exists(fname) is True
+        os.remove(fname)
+        assert os.path.exists(fname) is False
