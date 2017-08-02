@@ -1,8 +1,10 @@
+from asynctest import return_once
 from asynctest.mock import patch, CoroutineMock
 import pytest
 
 from ethereumd.poller import Poller, alertnotify
 from ethereumd.proxy import RPCProxy
+from ethereumd.exceptions import BadResponseError
 
 from .base import BaseTestRunner
 from .fakers import fake_call
@@ -196,3 +198,40 @@ class TestPoller(BaseTestRunner):
             with pytest.raises(KeyError) as excinfo:
                 await poller._build_filter('doesnotexists')
             assert 'doesnotexists' in str(excinfo)
+
+    @pytest.mark.asyncio
+    async def test_method__poll_with_reconnect_when_droped(self):
+        with patch('ethereumd.poller.Poller.poll'):
+            poller = Poller(self.proxy)
+
+        with patch.object(RPCProxy, '_call',
+                          side_effect=return_once(BadResponseError,
+                                                  then=fake_call())):
+            poller._pending = '0x6f4111062b3db311e6521781f4ef0046'
+            await poller._poll_with_reconnect('pending')
+
+    @pytest.mark.asyncio
+    async def test_method__exec_command_exist_cmd(self):
+        with patch('ethereumd.poller.Poller.poll'):
+            poller = Poller(self.proxy, cmds={'alernotify': 'echo "%s"'})
+
+        cmd_result = await poller._exec_command('alernotify', 'Some error')
+        assert cmd_result is True
+
+    @pytest.mark.asyncio
+    async def test_method__exec_command_some_error(self):
+        with patch('ethereumd.poller.Poller.poll'):
+            poller = Poller(self.proxy, cmds={'alernotify': 'echo "%s"'})
+
+        with patch('asyncio.create_subprocess_exec') as sp_mock:
+            sp_mock.side_effect = RuntimeError
+            cmd_result = await poller._exec_command('alernotify', 'Some error')
+        assert cmd_result is False
+
+    @pytest.mark.asyncio
+    async def test_method__exec_command_no_such_cmd(self):
+        with patch('ethereumd.poller.Poller.poll'):
+            poller = Poller(self.proxy)
+
+        cmd_result = await poller._exec_command('alernotify', 'Some error')
+        assert cmd_result is False

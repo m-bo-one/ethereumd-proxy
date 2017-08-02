@@ -139,7 +139,7 @@ class Poller:
             self._log.warning('%s command not found', cmd_name)
 
         if not cmd:
-            return
+            return False
 
         try:
             cmdp = await asyncio.create_subprocess_exec(
@@ -150,13 +150,13 @@ class Poller:
             stdout, _ = await cmdp.communicate()
             if stdout:
                 self._log.warning('%s: %s', cmd_name.upper(), stdout)
-            return cmdp
         except Exception as e:
             self._log.error('%s command exec error.', cmd_name)
             self._log.exception(e)
-            return
+            return False
         else:
             self._log.info('%s successfully notified.', cmd_name)
+            return True
 
     async def _build_filter(self, fname: str) -> str:
         quantity = await self._proxy._call(self._pollFilter[fname])
