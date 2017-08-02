@@ -44,10 +44,10 @@ class Poller:
         'pending': 'eth_newPendingTransactionFilter',
     }
 
-    def __init__(self, proxy, cmds, *, loop=None):
+    def __init__(self, proxy, cmds=None, *, loop=None):
         self._log = logging.getLogger('poller')
         self._proxy = proxy
-        self._cmds = cmds
+        self._cmds = cmds or {}
         self._loop = loop or asyncio.get_event_loop()
         self._queue = {
             'default': asyncio.Queue(maxsize=100, loop=self._loop)
@@ -87,8 +87,9 @@ class Poller:
         self._log.info('New blocks: %s', bhashes)
         accounts = await self._proxy._call('eth_accounts')
         for bhash in bhashes:
-            block = await self._proxy.getblock(bhash)
-            for txid in block['tx']:
+            block = await self._proxy._call('eth_getBlockByHash',
+                                            [bhash, False])
+            for txid in block['transactions']:
                 if (await self._is_account_trans(txid, accounts)):
                     await self.defqueue \
                         .put(self._exec_command('walletnotify', txid))
