@@ -154,7 +154,7 @@ TODO
 
 
 .. |release| image:: https://img.shields.io/badge/release-v0.1.1-brightgreen.svg
-    :target: https://github.com/DeV1doR/ethereumd-proxy
+    :target: https://github.com/DeV1doR/ethereumd-proxy/releases/tag/v0.1.1
     :alt: Release
 
 .. |coverage| image:: https://codecov.io/gh/DeV1doR/ethereumd-proxy/branch/master/graph/badge.svg

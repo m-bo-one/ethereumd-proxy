@@ -20,4 +20,4 @@ build:
 	python setup.py install
 
 clean:
-	rm -rf dist build ethereumd.egg-info ethereumd/*.pyc *.pyc .cache .tox .coverage
+	rm -rf dist build ethereumd.egg-info ethereumd/*.pyc *.pyc .cache .tox .coverage coverage.*

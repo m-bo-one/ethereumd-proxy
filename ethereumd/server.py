@@ -60,31 +60,30 @@ class RPCServer:
         self.routes()
 
     @property
-    def has_blocknotify(self):
-        return bool(self._blocknotify)
-
-    @property
-    def has_walletnotify(self):
-        return bool(self._walletnotify)
-
-    @property
-    def has_alertnotify(self):
-        return bool(self._alertnotify)
+    def cmds(self):
+        cmds = {}
+        if self._blocknotify:
+            cmds['blocknotify'] = self._blocknotify
+        if self._walletnotify:
+            cmds['walletnotify'] = self._walletnotify
+        if self._alertnotify:
+            cmds['alertnotify'] = self._alertnotify
+        return cmds
 
     def before_server_start(self):
         @self._app.listener('before_server_start')
         async def initialize_scheduler(app, loop):
-            self._poller = Poller(self, self._proxy, loop=loop)
+            self._poller = Poller(self._proxy, self.cmds, loop=loop)
             self._scheduler = AsyncIOScheduler({'event_loop': loop})
-            if self.has_blocknotify:
+            if self._poller.has_blocknotify:
                 self._scheduler.add_job(self._poller.blocknotify, 'interval',
                                         id='blocknotify',
                                         seconds=1)
-            if self.has_walletnotify:
+            if self._poller.has_walletnotify:
                 self._scheduler.add_job(self._poller.walletnotify, 'interval',
                                         id='walletnotify',
                                         seconds=1)
-            if self._scheduler.get_jobs():
+            if self._poller._scheduler.get_jobs():
                 self._scheduler.start()
 
     def routes(self):

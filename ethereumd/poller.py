@@ -5,7 +5,7 @@ import functools
 from .exceptions import BadResponseError
 
 
-def alertnotify(func_or_none=None, *, exceptions=()):
+def alertnotify(func_or_none=None, *, exceptions=(Exception,)):
 
     if not func_or_none:
         return functools.partial(alertnotify, exceptions=exceptions)
@@ -13,14 +13,14 @@ def alertnotify(func_or_none=None, *, exceptions=()):
     def decorator(func):
         @functools.wraps(func)
         async def wrapper(self, *args, **kwargs):
-            if self._server.has_alertnotify:
+            if not self.has_alertnotify:
                 return await func(self, *args, **kwargs)
 
             try:
                 return await func(self, *args, **kwargs)
             except exceptions as e:
                 err_msg = 'Error from: %s' % e
-                cmd = self._server.alertnotify % err_msg
+                cmd = self._cmds['alertnotify'] % err_msg
                 cmdp = await asyncio.create_subprocess_exec(
                     *cmd.split(),
                     stdout=asyncio.subprocess.PIPE,
@@ -44,17 +44,28 @@ class Poller:
         'pending': 'eth_newPendingTransactionFilter',
     }
 
-    def __init__(self, server, proxy, *, loop=None):
+    def __init__(self, proxy, cmds, *, loop=None):
         self._log = logging.getLogger('poller')
-        self._server = server
         self._proxy = proxy
+        self._cmds = cmds
         self._loop = loop or asyncio.get_event_loop()
-        # self._db = CacheLevelDB(config['db'], loop=self._loop)
         self._queue = {
             'default': asyncio.Queue(maxsize=100, loop=self._loop)
         }
         self._ctask = asyncio.ensure_future(self.poll(),
                                             loop=self._loop)
+
+    @property
+    def has_blocknotify(self):
+        return bool(self._cmds.get('blocknotify', False))
+
+    @property
+    def has_walletnotify(self):
+        return bool(self._cmds.get('walletnotify', False))
+
+    @property
+    def has_alertnotify(self):
+        return bool(self._cmds.get('alertnotify', False))
 
     def stop(self):
         self._ctask.cancel()
@@ -68,7 +79,7 @@ class Poller:
             coro = await self.defqueue.get()
             await coro
 
-    @alertnotify(exceptions=(ConnectionError, TimeoutError))
+    @alertnotify(exceptions=(ConnectionError, TimeoutError, BadResponseError))
     async def blocknotify(self):
         bhashes = await self._poll_with_reconnect('latest')
         if not bhashes:
@@ -77,9 +88,6 @@ class Poller:
         accounts = await self._proxy._call('eth_accounts')
         for bhash in bhashes:
             block = await self._proxy.getblock(bhash)
-            if not block:
-                self._log.critical('Block "%s" was orphaned.', bhash)
-                continue
             for txid in block['tx']:
                 if (await self._is_account_trans(txid, accounts)):
                     await self.defqueue \
@@ -88,7 +96,7 @@ class Poller:
             self._log.info('Block: %s' % bhash)
             await self.defqueue.put(self._exec_command('blocknotify', bhash))
 
-    @alertnotify(exceptions=(ConnectionError, TimeoutError))
+    @alertnotify(exceptions=(ConnectionError, TimeoutError, BadResponseError))
     async def walletnotify(self):
         txids = await self._poll_with_reconnect('pending')
         if not txids:
@@ -124,8 +132,8 @@ class Poller:
 
     async def _exec_command(self, cmd_name, data):
         try:
-            cmd = getattr(self._server, '_%s' % cmd_name) % data
-        except AttributeError:
+            cmd = self._cmds[cmd_name] % data
+        except KeyError:
             cmd = None
             self._log.warning('%s command not found', cmd_name)
 
