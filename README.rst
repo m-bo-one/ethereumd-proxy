@@ -113,6 +113,13 @@ Copy it to your datadir folder or use direct path to it.
 Changes
 =======
 
+0.1.2 (2017-08-09)
+------------------
+
+* Increased testcov to 77%;
+* Added more tests for methods;
+* Fix error with alernotify;
+
 0.1.1 (2017-07-31)
 ------------------
 
