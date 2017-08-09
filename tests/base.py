@@ -1,10 +1,11 @@
+import asyncio
 import subprocess
 import os
 import time
 from urllib.request import urlopen
 from urllib.error import URLError
 
-from ethereumd.proxy import RPCProxy, IPCProxy
+from ethereumd.proxy import create_rpc_proxy, create_ipc_proxy
 
 
 NODE_PORT = 30375
@@ -22,9 +23,34 @@ def is_hex(s):
         return False
 
 
+# TODO: replace from proxy call in future
+async def quick_unlock_account(proxy, duration=5):
+    return await proxy._call('personal_unlockAccount', [
+        (await proxy._call('eth_accounts'))[0],
+        'admin',
+        duration
+    ])
+
+
+def setup_proxies(fn):
+
+    async def _wrapper(self, event_loop, *args, **kwargs):
+        self.proxies = []
+        self.loop = asyncio.get_event_loop()
+        self.rpc_proxy = await create_rpc_proxy(port=RPC_PORT,
+                                                loop=event_loop)
+        self.proxies.append(self.rpc_proxy)
+        self.ipc_proxy = await create_ipc_proxy(ipc_path=UNIX_PATH,
+                                                loop=event_loop)
+        self.proxies.append(self.ipc_proxy)
+        return await fn(self, *args, **kwargs)
+
+    return _wrapper
+
+
 class BaseTestRunner:
 
-    run_with = []  # available: node, rpc, ipc
+    run_with_node = False
 
     @staticmethod
     def _start_node():
@@ -54,21 +80,13 @@ class BaseTestRunner:
     @classmethod
     def setup_class(cls):
         # TODO: Maybe better to mock?
-        if 'node' in cls.run_with:
+        if cls.run_with_node:
             cls._start_node()
             cls._wait_until_node_start()
 
-        cls.proxies = []
-        if 'rpc' in cls.run_with:
-            cls.rpc_proxy = RPCProxy(port=RPC_PORT)
-            cls.proxies.append(cls.rpc_proxy)
-        if 'ipc' in cls.run_with:
-            cls.ipc_proxy = IPCProxy(UNIX_PATH)
-            cls.proxies.append(cls.ipc_proxy)
-
     @classmethod
     def teardown_class(cls):
-        if 'node' in cls.run_with:
+        if cls.run_with_node:
             process = subprocess.Popen(['make', '-C', BOX_DIR, 'stop'],
                                        stdout=subprocess.PIPE,
                                        stderr=subprocess.STDOUT)

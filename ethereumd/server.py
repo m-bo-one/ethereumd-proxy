@@ -10,7 +10,7 @@ from sanic.server import serve
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 
-from .proxy import RPCProxy, IPCProxy
+from .proxy import create_rpc_proxy, create_ipc_proxy
 from .poller import Poller
 from .utils import create_default_logger
 from .exceptions import BadResponseError
@@ -34,7 +34,8 @@ class SentryErrorHandler(ErrorHandler):
 
 class RPCServer:
 
-    def __init__(self, ethpconnect, ethpport, rpcconnect, rpcport,
+    def __init__(self, ethpconnect='127.0.0.1', ethpport=9500,
+                 rpcconnect='127.0.0.1', rpcport=8545,
                  ipcconnect=None, blocknotify=None, walletnotify=None,
                  alertnotify=None, *, loop=None):
         self._loop = loop or asyncio.get_event_loop()
@@ -46,13 +47,6 @@ class RPCServer:
         self._rpc_host = rpcconnect
         self._rpc_port = rpcport
         self._unix_socket = ipcconnect
-        if self._unix_socket:
-            self._proxy = IPCProxy(self._unix_socket,
-                                   loop=self._loop)
-        else:
-            self._proxy = RPCProxy(self._rpc_host, self._rpc_port,
-                                   loop=self._loop)
-
         self._blocknotify = blocknotify
         self._walletnotify = walletnotify
         self._alertnotify = alertnotify
@@ -73,6 +67,13 @@ class RPCServer:
     def before_server_start(self):
         @self._app.listener('before_server_start')
         async def initialize_scheduler(app, loop):
+            if self._unix_socket:
+                self._proxy = await create_ipc_proxy(self._unix_socket,
+                                                     loop=loop)
+            else:
+                self._proxy = await create_rpc_proxy(self._rpc_host,
+                                                     self._rpc_port,
+                                                     loop=loop)
             self._poller = Poller(self._proxy, self.cmds, loop=loop)
             self._scheduler = AsyncIOScheduler({'event_loop': loop})
             if self._poller.has_blocknotify:
@@ -83,7 +84,7 @@ class RPCServer:
                 self._scheduler.add_job(self._poller.walletnotify, 'interval',
                                         id='walletnotify',
                                         seconds=1)
-            if self._poller._scheduler.get_jobs():
+            if self._scheduler.get_jobs():
                 self._scheduler.start()
 
     def routes(self):

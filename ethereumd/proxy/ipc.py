@@ -13,10 +13,7 @@ class IPCProxy(ProxyMethod):
         self._log = logging.getLogger('ipc_proxy')
         self._loop = loop or asyncio.get_event_loop()
         self._lock = asyncio.Semaphore(1, loop=self._loop)
-
         self._ipc_path = ipc_path
-        self._reader, self._writer = self._loop.run_until_complete(
-            asyncio.open_unix_connection(self._ipc_path))
 
     async def _call(self, method, params=None, _id=None):
         params = params or []
@@ -45,3 +42,10 @@ class IPCProxy(ProxyMethod):
             return response['result']
         except KeyError:
             raise BadResponseError(response)
+
+
+async def create_ipc_proxy(ipc_path, *, loop=None):
+    proxy = IPCProxy(ipc_path, loop=loop)
+    proxy._reader, proxy._writer = await asyncio \
+        .open_unix_connection(proxy._ipc_path)
+    return proxy

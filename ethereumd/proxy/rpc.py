@@ -54,3 +54,8 @@ class RPCProxy(ProxyMethod):
             return response['result']
         except KeyError:
             raise BadResponseError(response)
+
+
+async def create_rpc_proxy(host='127.0.0.1', port=8545, tls=False, timeout=60,
+                           *, loop=None):
+    return RPCProxy(host, port, tls, timeout, loop=loop)

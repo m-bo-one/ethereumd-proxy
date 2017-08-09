@@ -156,13 +156,12 @@ Examples:
 > ethereum-cli settxfee 0.00042
 > curl -X POST -H 'Content-Type: application/json' -d '{"jsonrpc": "1.0", "id":"curltest", "method": "settxfee", "params": [0.00042] }'  http://127.0.0.01:9500/
         """
-        amount = float(amount)
-        if amount <= 0:
+        if isinstance(amount, (int, float)) and amount <= 0:
             raise BadResponseError({
                 'error': {'code': -3, 'message': 'Amount out of range'}
             })
         try:
-            self._paytxfee = amount
+            self._paytxfee = float(amount)
         except Exception:
             return False
         else:
