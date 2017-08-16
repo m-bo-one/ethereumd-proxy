@@ -15,7 +15,8 @@ def get_version():
 setup(
     name='ethereumd-proxy',
     version=get_version(),
-    description='Ethereum proxy to node on official RPC',
+    description='Proxy client-server for Ethereum node using '
+                'JSON-RPC interface.',
     long_description=readme,
     py_modules=['ethereum_cli'],
     author='Bogdan Kurinnyi',
@@ -23,6 +24,16 @@ setup(
     url='https://github.com/DeV1doR/ethereumd-proxy',
     license='MIT',
     packages=find_packages(),
+    classifiers=[
+        'Development Status :: 4 - Beta',
+        'Intended Audience :: Developers',
+        'License :: OSI Approved :: MIT License',
+        'Topic :: Software Development :: Libraries :: Python Modules',
+        'Natural Language :: English',
+        'Operating System :: OS Independent',
+        'Programming Language :: Python :: 3.5',
+        'Programming Language :: Python :: 3.6',
+    ],
     install_requires=[
         'sanic==0.5.4',
         'aiohttp==2.2.3',

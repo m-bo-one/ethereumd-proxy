@@ -17,11 +17,11 @@ Python 3.5+ required.
 
 First you need Geth/Parity or any other ethereum node (for listening). Tested on Geth 1.6.7 and used in production.
 
-After install dependencies:
+Installation
 
 .. code:: bash
 
-   $ python setup.py install
+   $ pip install ethereumd-proxy
 
 Usage
 -----
@@ -56,7 +56,7 @@ Wallet
 * settxfee
 * listaccounts
 * gettransaction
-* sendtoaddress (NOTE: 'coinbase' used here as from address now, need to think more about better solution)
+* sendtoaddress
 
 Blockchain
 ----------
