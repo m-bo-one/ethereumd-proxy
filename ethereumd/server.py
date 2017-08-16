@@ -2,7 +2,6 @@ import logging
 import asyncio
 import os
 
-import uvloop
 from sanic import Sanic, response
 from sanic.handlers import ErrorHandler
 from sanic.server import serve
@@ -17,7 +16,6 @@ from .exceptions import BadResponseError
 
 
 create_default_logger(logging.WARNING)
-asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
 
 class SentryErrorHandler(ErrorHandler):
