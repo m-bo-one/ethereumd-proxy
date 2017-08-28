@@ -157,8 +157,6 @@ Result:
     "txid": "transactionid",  (string) The transaction id. Available for 'send' and 'receive' category of transactions.
     "time": xxx,              (numeric) The transaction time in seconds since epoch (Jan 1 1970 GMT).
     "timereceived": xxx,      (numeric) The time received in seconds since epoch (Jan 1 1970 GMT). Available for 'send' and 'receive' category of transactions.
-    "bip125-replaceable": "yes|no|unknown",  (string) Whether this transaction could be replaced due to BIP125 (replace-by-fee);
-                                                   may be unknown for unconfirmed transactions not in the mempool
     "abandoned": xxx,         (bool) 'true' if the transaction has been abandoned (inputs are respendable). Only available for the 'send' category of transactions.
     "comment": "...",       (string) If a comment is associated with the transaction.
     "label" : "label"       (string) A comment for the address/transaction, if any
@@ -172,6 +170,8 @@ Examples:
 > ethereum-cli listsinceblock "0x2a7f92d11cf8194f2bc8976e0532a9d7735e60e99e3339cb2316bd4c5b4137ce"
 > curl -X POST -H 'Content-Type: application/json' -d '{"jsonrpc": "1.0", "id":"curltest", "method": "listsinceblock", "params": ["0x2a7f92d11cf8194f2bc8976e0532a9d7735e60e99e3339cb2316bd4c5b4137ce"] }'  http://127.0.0.01:9500/
         """
+        # TODO: Optimization??
+        # TODO: Correct return data
         transactions = []
         latest_block = await self.getbestblockhash()
         if not blockhash:
@@ -190,17 +190,15 @@ Examples:
 
         while block:
             for tr in block['transactions']:
-                if include_watchonly:
-                    if tr['to'] in addresses or tr['from'] in addresses:
-                        transactions.append(
-                            await self._get_detailed_transac_info(tr, addresses))
+                if include_watchonly and (tr['to'] in addresses or
+                                          tr['from'] in addresses):
+                    transactions.append(
+                        await self._get_detailed_transac_info(tr, addresses))
                 else:
                     transactions.append(
                         await self._get_detailed_transac_info(tr, addresses))
-            try:
-                block = await self.getblock(block['nextblockhash'])
-            except KeyError:
-                break
+            next = hex_to_dec(block['number']) + 1
+            block = await self._call('eth_getBlockByNumber', [hex(next), True])
         return {
             'transactions': transactions,
             'lastblock': (await self.getbestblockhash()),
@@ -233,7 +231,23 @@ Lock the wallet again (before 60 seconds)
 As json rpc call
 > curl -X POST -H 'Content-Type: application/json' -d '{"jsonrpc": "1.0", "id":"curltest", "method": "walletpassphrase", "params": ["0x6cace0528324a8afc2b157ceba3cdd2a27c4e21f", "my pass phrase", 60] }'  http://127.0.0.01:9500/
         """
-        pass
+        args = [address]
+        if passphrase or (not passphrase and timeout):
+            args.append(passphrase)
+        if timeout:
+            args.append(timeout)
+        try:
+            await self._call('personal_unlockAccount', args)
+        except BadResponseError as e:
+            for arg in e.args:
+                if arg['error']['code'] != -32000:
+                    raise
+            raise BadResponseError({
+                'error': {
+                    'code': -14,
+                    'message': 'The wallet passphrase entered was incorrect.'
+                }
+            })
 
     @Method.registry(Category.Wallet)
     async def walletlock(self, address):
@@ -254,7 +268,7 @@ Clear the passphrase since we are done before 2 minutes is up
 As json rpc call
 > curl -X POST -H 'Content-Type: application/json' -d '{"jsonrpc": "1.0", "id":"curltest", "method": "walletlock", "params": ["0x6cace0528324a8afc2b157ceba3cdd2a27c4e21f"] }'  http://127.0.0.01:9500/
         """
-        pass
+        await self._call('personal_lockAccount', [address])
 
     @Method.registry(Category.Blockchain)
     async def getdifficulty(self):
@@ -451,13 +465,13 @@ Examples:
         return await self._get_detailed_transac_info(transaction, addresses)
 
     @Method.registry(Category.Wallet)
-    async def getnewaddress(self, passphrase=""):
+    async def getnewaddress(self, passphrase):
         """getnewaddress ( "passphrase" )
 
 Returns a new Ethereum address for receiving payments.
 
 Arguments:
-1. "passphrase"        (string, optional) The password for new account. If not provided, the default password "" is used.
+1. "passphrase"        (string, required) The password for new account. If not provided, the default password "" is used.
 
 Result:
 "passphrase"    (string) The passphrase for address
@@ -466,7 +480,7 @@ Examples:
 > ethereum-cli getnewaddress "passphrase"
 > curl -X POST -H 'Content-Type: application/json' -d '{"jsonrpc": "1.0", "id":"curltest", "method": "getnewaddress", "params": ["passphrase"] }'  http://127.0.0.01:9500/
         """
-        pass
+        return await self._call('personal_newAccount', [passphrase])
 
     @Method.registry(Category.Wallet)
     async def sendfrom(self, fromaccount, toaddress, amount,
@@ -507,7 +521,14 @@ As a json rpc call
         # TODO: add default fromaccount if empty as coinbase
         # TODO: Add amount and address validation
         # TODO: Add minconf logic
-        pass
+        gas = await self._paytxfee_to_etherfee()
+        return await self._call('eth_sendTransaction', [{
+            'from': fromaccount,  # from ???
+            'to': toaddress,  # to
+            'gas': hex(gas['gas_amount']),  # gas amount
+            'gasPrice': hex(gas['gas_price']),  # gas price
+            'value': hex(ether_to_wei(float(amount))),  # value
+        }])
 
     @Method.registry(Category.Wallet)
     async def sendtoaddress(self, address, amount, comment="",
