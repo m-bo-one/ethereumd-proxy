@@ -79,7 +79,7 @@ class Poller:
             coro = await self.defqueue.get()
             await coro
 
-    @alertnotify(exceptions=(ConnectionError, TimeoutError, BadResponseError))
+    @alertnotify(exceptions=(ConnectionError, BadResponseError))
     async def blocknotify(self):
         bhashes = await self._poll_with_reconnect('latest')
         if not bhashes:

@@ -1,6 +1,5 @@
 import logging
 import asyncio
-import os
 
 from sanic import Sanic, response
 from sanic.handlers import ErrorHandler
@@ -11,7 +10,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from .proxy import create_rpc_proxy, create_ipc_proxy
 from .poller import Poller
-from .utils import create_default_logger
+from .utils import create_default_logger, GREETING
 from .exceptions import BadResponseError
 
 
@@ -91,16 +90,6 @@ class RPCServer:
         self._app.add_route(self.handler_log, '/_log/',
                             methods=['GET', 'POST'])
 
-    @property
-    def _greeting(self):
-        try:
-            import ethereum_cli  # noqa
-        except ImportError:
-            return
-        dirname = os.path.join(os.path.dirname(ethereum_cli.__file__), 'motd')
-        with open(dirname) as motd:
-            return '\033[91m' + motd.read() + '\033[0m'
-
     async def handler_index(self, request):
         data = request.json
         try:
@@ -144,8 +133,7 @@ class RPCServer:
 
     def run(self):
         self.before_server_start()
-        # TODO: Fix it
-        # self._log.info(self._greeting)
+        self._log.info(GREETING)
         server_settings = self._app._helper(
             host=self._host,
             port=self._port,
