@@ -1,5 +1,6 @@
 import operator
 import asyncio
+import re
 from enum import IntEnum
 from abc import abstractmethod
 
@@ -92,20 +93,44 @@ Result:
   "isscript" : true|false,      (boolean) If the key is a script
   "pubkey" : "publickeyhex",    (string) The hex value of the raw public key
   "iscompressed" : true|false,  (boolean) If the address is compressed
-  "account" : "account"         (string) DEPRECATED. The account associated with the address, "" is the default account
   "timestamp" : timestamp,        (number, optional) The creation time of the key if available in seconds since epoch (Jan 1 1970 GMT)
-  "hdkeypath" : "keypath"       (string, optional) The HD keypath if the key is HD and available
-  "hdmasterkeyid" : "<hash160>" (string, optional) The Hash160 of the HD master pubkey
 }
 
 Examples:
 > ethereum-cli validateaddress "0x6cace0528324a8afc2b157ceba3cdd2a27c4e21f"
 > curl -X POST -H 'Content-Type: application/json' -d '{"jsonrpc": "1.0", "id":"curltest", "method": "validateaddress", "params": ["0x6cace0528324a8afc2b157ceba3cdd2a27c4e21f"] }'  http://127.0.0.01:9500/
         """
-        pass
+        if not isinstance(address, (bytes, str, bytearray)):
+            return {
+                'isvalid': False
+            }
+
+        address = '0x{0}'.format(address) if len(address) == 40 else address
+        if len(address) != 42:
+            return {
+                'isvalid': False
+            }
+        elif re.match(r"^((0x)|(0X))?[0-9a-fA-F]{40}", address):
+            return {
+                'isvalid': True,
+                'address': address,
+                'scriptPubKey': 'hex',
+                'ismine': (True if address in
+                           (await self._call('eth_accounts')) else False),
+                'iswatchonly': False,  # TODO
+                'isscript': False,
+                'pubkey': address,
+                'iscompressed': False,
+                'timestamp': None,  # TODO
+            }
+        else:
+            return {
+                'isvalid': False
+            }
 
     @Method.registry(Category.Wallet)
-    async def listsinceblock(self, blockhash=None, target_confirmations=1, include_watchonly=false):
+    async def listsinceblock(self, blockhash=None, target_confirmations=1,
+                             include_watchonly=False):
         """listsinceblock ( "blockhash" target_confirmations include_watchonly)
 
 Get all transactions in blocks since block [blockhash], or all transactions if omitted
@@ -147,7 +172,39 @@ Examples:
 > ethereum-cli listsinceblock "0x2a7f92d11cf8194f2bc8976e0532a9d7735e60e99e3339cb2316bd4c5b4137ce"
 > curl -X POST -H 'Content-Type: application/json' -d '{"jsonrpc": "1.0", "id":"curltest", "method": "listsinceblock", "params": ["0x2a7f92d11cf8194f2bc8976e0532a9d7735e60e99e3339cb2316bd4c5b4137ce"] }'  http://127.0.0.01:9500/
         """
-        pass
+        transactions = []
+        latest_block = await self.getbestblockhash()
+        if not blockhash:
+            blockhash = latest_block
+
+        try:
+            block, addresses = await asyncio.gather(
+                self._call('eth_getBlockByHash', [blockhash, True]),
+                self._call('eth_accounts')
+            )
+        except BadResponseError:
+            return {
+                'transactions': transactions,
+                'lastblock': latest_block,
+            }
+
+        while block:
+            for tr in block['transactions']:
+                if include_watchonly:
+                    if tr['to'] in addresses or tr['from'] in addresses:
+                        transactions.append(
+                            await self._get_detailed_transac_info(tr, addresses))
+                else:
+                    transactions.append(
+                        await self._get_detailed_transac_info(tr, addresses))
+            try:
+                block = await self.getblock(block['nextblockhash'])
+            except KeyError:
+                break
+        return {
+            'transactions': transactions,
+            'lastblock': (await self.getbestblockhash()),
+        }
 
     @Method.registry(Category.Wallet)
     async def walletpassphrase(self, address, passphrase, timeout):
@@ -297,8 +354,6 @@ Examples:
     async def listaccounts(self, minconf=1, include_watchonly=True):
         """listaccounts ( minconf include_watchonly)
 
-DEPRECATED. Returns Object that has account names as keys, account balances as values.
-
 Arguments:
 1. minconf             (numeric, optional, default=1) Only include transactions with at least this many confirmations
 2. include_watchonly   (bool, optional, default=false) DEPRECATED. Include balances in watch-only addresses (see 'importaddress')
@@ -327,12 +382,12 @@ As json rpc call
         addresses = await self._call('eth_accounts')
         accounts = {}
         for i, address in enumerate(addresses):
-            account = 'Account #{0}'.format(i)
+            # account = 'Account #{0}'.format(i)
             balance = (await self._call(
                        'eth_getBalance', [address, "latest"])) or 0
             if not isinstance(balance, (int, float)):
                 balance = hex_to_dec(balance)
-            accounts[account] = wei_to_ether(balance)
+            accounts[address] = wei_to_ether(balance)
 
         return accounts
 
@@ -393,49 +448,7 @@ Examples:
                     'message': 'Invalid or non-wallet transaction id'
                 }
             })
-
-        trans_info = {
-            'amount': wei_to_ether(hex_to_dec(transaction['value'])),
-            'confirmations': 0,
-            'trusted': None,
-            "walletconflicts": [],
-            'txid': transaction['hash'],
-            'time': None,
-            'timereceived': None,
-            'details': [],
-            'hex': transaction['input']
-        }
-        if transaction['blockHash']:
-            block = await self.getblock(transaction['blockHash'])
-            trans_info['confirmations'] = block['confirmations']
-        if transaction['to'] in addresses:
-            trans_info['details'].append({
-                'account': '',
-                'address': transaction['to'],
-                'category': 'receive',
-                'amount': trans_info['amount'],
-                'label': '',
-                'vout': 1
-            })
-        if transaction['from'] in addresses:
-            from_ = {
-                'account': '',
-                'address': transaction['from'],
-                'category': 'send',
-                'amount': operator.neg(trans_info['amount']),
-                'vout': 1,
-                'fee': None,
-                'abandoned': False
-            }
-            if transaction['blockHash']:
-                tr_hash, tr_receipt = await asyncio.gather(
-                    self._call('eth_getTransactionByHash', [txid]),
-                    self._call('eth_getTransactionReceipt', [txid])
-                )
-                from_['fee'] = (tr_hash['gasPrice'] *
-                                wei_to_ether(tr_receipt['gasUsed']))
-            trans_info['details'].append(from_)
-        return trans_info
+        return await self._get_detailed_transac_info(transaction, addresses)
 
     @Method.registry(Category.Wallet)
     async def getnewaddress(self, passphrase=""):
@@ -625,7 +638,13 @@ Examples:
         if not verbose:
             return block['hash']
 
-        return {
+        next_block, confirmations = await asyncio.gather(
+            self._call('eth_getBlockByNumber', [
+                hex(hex_to_dec(block['number']) + 1), False]),
+            self._get_confirmations(block),
+        )
+
+        data = {
             'hash': block['hash'],
             'confirmations': (await self._get_confirmations(block)),
             'strippedsize': None,
@@ -644,6 +663,9 @@ Examples:
             'chainwork': None,
             'previousblockhash': block['parentHash']
         }
+        if next_block:
+            data['nextblockhash'] = next_block['hash']
+        return data
 
     # ABSTRACT METHODS
 
@@ -677,3 +699,50 @@ Examples:
             return 0
         return (hex_to_dec(last_block_number) -
                 hex_to_dec(block['number']))
+
+    async def _get_detailed_transac_info(self, transaction, addresses=None):
+        addresses = addresses or (await self._call('eth_accounts'))
+        trans_info = {
+            'amount': wei_to_ether(hex_to_dec(transaction['value'])),
+            'confirmations': 0,
+            'trusted': None,
+            "walletconflicts": [],
+            'txid': transaction['hash'],
+            'time': None,
+            'timereceived': None,
+            'details': [],
+            'hex': transaction['input']
+        }
+        if transaction['blockHash']:
+            block = await self.getblock(transaction['blockHash'])
+            trans_info['confirmations'] = block['confirmations']
+        if transaction['to'] in addresses:
+            trans_info['details'].append({
+                'account': transaction['to'],
+                'address': transaction['to'],
+                'category': 'receive',
+                'amount': trans_info['amount'],
+                'label': '',
+                'vout': 1
+            })
+        if transaction['from'] in addresses:
+            from_ = {
+                'account': transaction['from'],
+                'address': transaction['from'],
+                'category': 'send',
+                'amount': operator.neg(trans_info['amount']),
+                'vout': 1,
+                'fee': None,
+                'abandoned': False
+            }
+            if transaction['blockHash']:
+                tr_hash, tr_receipt = await asyncio.gather(
+                    self._call('eth_getTransactionByHash', [
+                        transaction['hash']]),
+                    self._call('eth_getTransactionReceipt', [
+                        transaction['hash']])
+                )
+                from_['fee'] = (tr_hash['gasPrice'] *
+                                wei_to_ether(tr_receipt['gasUsed']))
+            trans_info['details'].append(from_)
+        return trans_info
