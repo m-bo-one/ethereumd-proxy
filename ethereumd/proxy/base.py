@@ -129,20 +129,19 @@ Examples:
             }
 
     @Method.registry(Category.Wallet)
-    async def listsinceblock(self, blockhash=None, target_confirmations=1,
+    async def listsinceblock(self, blockhash, target_confirmations=1,
                              include_watchonly=False):
         """listsinceblock ( "blockhash" target_confirmations include_watchonly)
 
-Get all transactions in blocks since block [blockhash], or all transactions if omitted
+Get all transactions in blocks since block [blockhash]
 
 Arguments:
-1. "blockhash"            (string, optional) The block hash to list transactions since
+1. "blockhash"            (string, required) The block hash to list transactions since
 2. target_confirmations:    (numeric, optional) The confirmations required, must be 1 or more
 3. include_watchonly:       (bool, optional, default=false) Include transactions to watch-only addresses (see 'importaddress')
 Result:
 {
   "transactions": [
-    "account":"accountname",       (string) DEPRECATED. The account name associated with the transaction. Will be "" for the default account.
     "address":"address",    (string) The ethereum address of the transaction. Not present for move transactions (category = move).
     "category":"send|receive",     (string) The transaction category. 'send' has negative amounts, 'receive' has positive amounts.
     "amount": x.xxx,          (numeric) The amount in BTC. This is negative for the 'send' category, and for the 'move' category for moves
@@ -172,36 +171,90 @@ Examples:
         """
         # TODO: Optimization??
         # TODO: Correct return data
+        if target_confirmations < 1:
+            raise BadResponseError({
+                'error': {
+                    'code': -8,
+                    'message': 'Invalid parameter'
+                }
+            })
         transactions = []
-        latest_block = await self.getbestblockhash()
-        if not blockhash:
-            blockhash = latest_block
 
-        try:
-            block, addresses = await asyncio.gather(
-                self._call('eth_getBlockByHash', [blockhash, True]),
-                self._call('eth_accounts')
-            )
-        except BadResponseError:
+        latest_block, from_block, addresses = await asyncio.gather(
+            self._call('eth_getBlockByNumber', ['latest', True]),
+            self._call('eth_getBlockByHash', [blockhash, True]),
+            self._call('eth_accounts')
+        )
+        if target_confirmations == 1:
+            lst_hash = await self.getbestblockhash()
+        else:
+            need_height = hex_to_dec(latest_block['number']) + 1 - \
+                target_confirmations
+            lst_hash = (await self._call('eth_getBlockByNumber', [
+                        hex(need_height), True]))['hash']
+        if not from_block:
             return {
                 'transactions': transactions,
-                'lastblock': latest_block,
+                'lastblock': lst_hash,
             }
 
-        while block:
+        start_height = hex_to_dec(from_block['number']) + 1
+        end_height = hex_to_dec(latest_block['number'])
+
+        def _fetch_block_transacs(addresses, block, tr):
+            if tr['from'] in addresses:
+                address = tr['from']
+                category = 'send'
+            elif tr['to'] in addresses:
+                address = tr['to']
+                category = 'receive'
+            else:
+                return
+
+            data = {
+                'address': address,
+                'category': category,
+                'amount': wei_to_ether(hex_to_dec(tr['value'])),
+                'vout': 1,
+                'fee': (hex_to_dec(tr['gasPrice']) *
+                        wei_to_ether(hex_to_dec(tr['gas']))),
+                'confirmations': (end_height + 1 -
+                                  hex_to_dec(tr['blockNumber'])),
+                'blockhash': tr['blockHash'],
+                'blockindex': None,  # TODO
+                'blocktime': hex_to_dec(block['timestamp']),
+                'txid': tr['hash'],
+                'time': hex_to_dec(block['timestamp']),
+                'timereceived': None,  # TODO
+                'abandoned': False,  # TODO
+                'comment': None,  # TODO
+                'label': None,  # TODO
+                'to': None,  # TODO
+            }
+            import logging
+            logging.error(data)
+            return data
+
+        blocks = [from_block]
+        blocks.extend(filter(lambda b: b is not None,
+                             await asyncio.gather(*(
+                                 self._call('eth_getBlockByNumber',
+                                            [hex(height), True])
+                                 for height in range(start_height,
+                                                     end_height)))))
+        blocks.append(latest_block)
+        for block in blocks:
             for tr in block['transactions']:
-                if include_watchonly and (tr['to'] in addresses or
-                                          tr['from'] in addresses):
-                    transactions.append(
-                        await self._get_detailed_transac_info(tr, addresses))
-                else:
-                    transactions.append(
-                        await self._get_detailed_transac_info(tr, addresses))
-            next = hex_to_dec(block['number']) + 1
-            block = await self._call('eth_getBlockByNumber', [hex(next), True])
+                if not (
+                    tr['to'] in addresses and tr['from'] in addresses
+                ):
+                    fetched_tr = _fetch_block_transacs(addresses, block, tr)
+                    if fetched_tr:
+                        transactions.append(fetched_tr)
+
         return {
             'transactions': transactions,
-            'lastblock': (await self.getbestblockhash()),
+            'lastblock': lst_hash,
         }
 
     @Method.registry(Category.Wallet)
@@ -239,9 +292,8 @@ As json rpc call
         try:
             await self._call('personal_unlockAccount', args)
         except BadResponseError as e:
-            for arg in e.args:
-                if arg['error']['code'] != -32000:
-                    raise
+            if e.args[0]['error']['code'] != -32000:
+                raise
             raise BadResponseError({
                 'error': {
                     'code': -14,
@@ -748,22 +800,26 @@ Examples:
         return (hex_to_dec(last_block_number) -
                 hex_to_dec(block['number']))
 
-    async def _get_detailed_transac_info(self, transaction, addresses=None):
-        addresses = addresses or (await self._call('eth_accounts'))
+    async def _get_detailed_transac_info(self, transaction, addresses):
         trans_info = {
             'amount': wei_to_ether(hex_to_dec(transaction['value'])),
+            'blockhash': transaction['blockHash'],
+            'blockindex': None,
+            'blocktime': None,
             'confirmations': 0,
             'trusted': None,
-            "walletconflicts": [],
+            'walletconflicts': [],
             'txid': transaction['hash'],
             'time': None,
             'timereceived': None,
             'details': [],
             'hex': transaction['input']
         }
-        if transaction['blockHash']:
+        if hex_to_dec(transaction['blockHash']) != 0:
             block = await self.getblock(transaction['blockHash'])
             trans_info['confirmations'] = block['confirmations']
+        else:
+            trans_info['confirmations'] = 0
         if transaction['to'] in addresses:
             trans_info['details'].append({
                 'account': transaction['to'],
@@ -780,7 +836,6 @@ Examples:
                 'category': 'send',
                 'amount': operator.neg(trans_info['amount']),
                 'vout': 1,
-                'fee': None,
                 'abandoned': False
             }
             if transaction['blockHash']:
