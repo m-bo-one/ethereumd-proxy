@@ -202,38 +202,35 @@ Examples:
         end_height = hex_to_dec(latest_block['number'])
 
         def _fetch_block_transacs(addresses, block, tr):
+            category = None
             if tr['from'] in addresses:
-                address = tr['from']
+                address = tr['to']
                 category = 'send'
             elif tr['to'] in addresses:
                 address = tr['to']
                 category = 'receive'
-            else:
-                return
 
-            data = {
-                'address': address,
-                'category': category,
-                'amount': wei_to_ether(hex_to_dec(tr['value'])),
-                'vout': 1,
-                'fee': (hex_to_dec(tr['gasPrice']) *
-                        wei_to_ether(hex_to_dec(tr['gas']))),
-                'confirmations': (end_height + 1 -
-                                  hex_to_dec(tr['blockNumber'])),
-                'blockhash': tr['blockHash'],
-                'blockindex': None,  # TODO
-                'blocktime': hex_to_dec(block['timestamp']),
-                'txid': tr['hash'],
-                'time': hex_to_dec(block['timestamp']),
-                'timereceived': None,  # TODO
-                'abandoned': False,  # TODO
-                'comment': None,  # TODO
-                'label': None,  # TODO
-                'to': None,  # TODO
-            }
-            import logging
-            logging.error(data)
-            return data
+            if category:
+                return {
+                    'address': address,
+                    'category': category,
+                    'amount': wei_to_ether(hex_to_dec(tr['value'])),
+                    'vout': 1,
+                    'fee': (hex_to_dec(tr['gasPrice']) *
+                            wei_to_ether(hex_to_dec(tr['gas']))),
+                    'confirmations': (end_height + 1 -
+                                      hex_to_dec(tr['blockNumber'])),
+                    'blockhash': tr['blockHash'],
+                    'blockindex': None,  # TODO
+                    'blocktime': hex_to_dec(block['timestamp']),
+                    'txid': tr['hash'],
+                    'time': hex_to_dec(block['timestamp']),
+                    'timereceived': None,  # TODO
+                    'abandoned': False,  # TODO
+                    'comment': None,  # TODO
+                    'label': None,  # TODO
+                    'to': None,  # TODO
+                }
 
         blocks = [from_block]
         blocks.extend(filter(lambda b: b is not None,
@@ -508,7 +505,6 @@ Result:
   "timereceived" : ttt,    (numeric) The time received in seconds since epoch (1 Jan 1970 GMT)
   "details" : [
     {
-      "account" : "accountname",      (string) DEPRECATED. The account name involved in the transaction, can be "" for the default account.
       "address" : "address",          (string) The ethereum address involved in the transaction
       "category" : "send|receive",    (string) The category, either 'send' or 'receive'
       "amount" : x.xxx,                 (numeric) The amount in BTC
@@ -541,7 +537,55 @@ Examples:
                     'message': 'Invalid or non-wallet transaction id'
                 }
             })
-        return await self._get_detailed_transac_info(transaction, addresses)
+        trans_info = {
+            'amount': wei_to_ether(hex_to_dec(transaction['value'])),
+            'blockhash': transaction['blockHash'],
+            'blockindex': None,
+            'blocktime': None,
+            'confirmations': 0,
+            'trusted': None,
+            'walletconflicts': [],
+            'txid': transaction['hash'],
+            'time': None,
+            'timereceived': None,
+            'details': [],
+            'hex': transaction['input']
+        }
+        if hex_to_dec(transaction['blockHash']) != 0:
+            block = await self.getblock(transaction['blockHash'])
+            trans_info['confirmations'] = block['confirmations']
+        else:
+            trans_info['confirmations'] = 0
+        if transaction['to'] in addresses:
+            trans_info['details'].append({
+                'address': transaction['to'],
+                'category': 'receive',
+                'amount': trans_info['amount'],
+                'label': '',
+                'vout': 1
+            })
+        if transaction['from'] in addresses:
+            from_ = {
+                'address': transaction['to'],
+                'category': 'send',
+                'amount': operator.neg(trans_info['amount']),
+                'vout': 1,
+                'abandoned': False,
+                'fee': 0,
+            }
+            if transaction['blockHash']:
+                tr_hash, tr_receipt = await asyncio.gather(
+                    self._call('eth_getTransactionByHash', [
+                        transaction['hash']]),
+                    self._call('eth_getTransactionReceipt', [
+                        transaction['hash']])
+                )
+                if tr_receipt:
+                    from_['fee'] = (hex_to_dec(tr_hash['gasPrice']) *
+                                    wei_to_ether(
+                                        hex_to_dec(tr_receipt['gasUsed'])))
+            trans_info['details'].append(from_)
+        return trans_info
 
     @Method.registry(Category.Wallet)
     async def getnewaddress(self, passphrase):
@@ -777,13 +821,13 @@ Examples:
 
     async def _paytxfee_to_etherfee(self):
         try:
-            gas_price = self._paytxfee / GAS_AMOUNT
+            gas_price = ether_to_wei(self._paytxfee / GAS_AMOUNT)
         except AttributeError:
             gas_price = hex_to_dec(await self._call('eth_gasPrice'))
         finally:
             return {
                 'gas_amount': GAS_AMOUNT,
-                'gas_price': ether_to_gwei(gas_price),
+                'gas_price': gas_price,
             }
 
     async def _calculate_confirmations(self, response):
@@ -799,53 +843,3 @@ Examples:
             return 0
         return (hex_to_dec(last_block_number) -
                 hex_to_dec(block['number']))
-
-    async def _get_detailed_transac_info(self, transaction, addresses):
-        trans_info = {
-            'amount': wei_to_ether(hex_to_dec(transaction['value'])),
-            'blockhash': transaction['blockHash'],
-            'blockindex': None,
-            'blocktime': None,
-            'confirmations': 0,
-            'trusted': None,
-            'walletconflicts': [],
-            'txid': transaction['hash'],
-            'time': None,
-            'timereceived': None,
-            'details': [],
-            'hex': transaction['input']
-        }
-        if hex_to_dec(transaction['blockHash']) != 0:
-            block = await self.getblock(transaction['blockHash'])
-            trans_info['confirmations'] = block['confirmations']
-        else:
-            trans_info['confirmations'] = 0
-        if transaction['to'] in addresses:
-            trans_info['details'].append({
-                'account': transaction['to'],
-                'address': transaction['to'],
-                'category': 'receive',
-                'amount': trans_info['amount'],
-                'label': '',
-                'vout': 1
-            })
-        if transaction['from'] in addresses:
-            from_ = {
-                'account': transaction['from'],
-                'address': transaction['from'],
-                'category': 'send',
-                'amount': operator.neg(trans_info['amount']),
-                'vout': 1,
-                'abandoned': False
-            }
-            if transaction['blockHash']:
-                tr_hash, tr_receipt = await asyncio.gather(
-                    self._call('eth_getTransactionByHash', [
-                        transaction['hash']]),
-                    self._call('eth_getTransactionReceipt', [
-                        transaction['hash']])
-                )
-                from_['fee'] = (tr_hash['gasPrice'] *
-                                wei_to_ether(tr_receipt['gasUsed']))
-            trans_info['details'].append(from_)
-        return trans_info
