@@ -271,6 +271,33 @@ As json rpc call
         await self._call('personal_lockAccount', [address])
 
     @Method.registry(Category.Blockchain)
+    async def getblockhash(self, height):
+        """getblockhash height
+
+Returns hash of block in best-block-chain at height provided.
+
+Arguments:
+1. height         (numeric, required) The height index
+
+Result:
+"hash"         (string) The block hash
+
+Examples:
+> ethereum-cli getblockhash 1000
+> curl -X POST -H 'Content-Type: application/json' -d '{"jsonrpc": "1.0", "id":"curltest", "method": "getblockhash", "params": [1000] }'  http://127.0.0.01:9500/
+        """
+        if height < 0:
+            raise BadResponseError({
+                'error': {'code': -8, 'message': 'Block height out of range'}
+            })
+        block = await self._call('eth_getBlockByNumber', [hex(height), False])
+        if block is None:
+            raise BadResponseError({
+                'error': {'code': -8, 'message': 'Block height out of range'}
+            })
+        return block['hash']
+
+    @Method.registry(Category.Blockchain)
     async def getdifficulty(self):
         """getdifficulty
 
