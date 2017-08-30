@@ -286,17 +286,7 @@ As json rpc call
             args.append(passphrase)
         if timeout:
             args.append(timeout)
-        try:
-            await self._call('personal_unlockAccount', args)
-        except BadResponseError as e:
-            if e.args[0]['error']['code'] != -32000:
-                raise
-            raise BadResponseError({
-                'error': {
-                    'code': -14,
-                    'message': 'The wallet passphrase entered was incorrect.'
-                }
-            })
+        await self._call('personal_unlockAccount', args)
 
     @Method.registry(Category.Wallet)
     async def walletlock(self, address):
@@ -361,8 +351,28 @@ Examples:
         """
         return hex_to_dec(await self._call('eth_hashrate'))
 
+    @Method.registry(Category.Util)
+    async def estimatefee(self, nblocks=1):
+        """estimatefee nblocks
+
+Estimates the approximate fee needed for a transaction to begin
+confirmation within nblocks blocks.
+
+Arguments:
+1. nblocks     (numeric, required) DEPRECATED.
+
+Result:
+n              (numeric) estimated fee-per-kilobyte
+
+Example:
+> ethereum-cli estimatefee
+        """
+        gas = await self._paytxfee_to_etherfee()
+        return wei_to_ether(gas['gas_amount'] * gas['gas_price'])
+
     @Method.registry(Category.Wallet)
-    async def getbalance(self, account="*", minconf=1, include_watchonly=True):
+    async def getbalance(self, account=None, minconf=1,
+                         include_watchonly=True):
         """getbalance ( "account" minconf include_watchonly )
 
 If account is not specified, returns the server's total available balance.
@@ -401,8 +411,6 @@ As a json rpc call
 > curl -X POST -H 'Content-Type: application/json' -d '{"jsonrpc": "1.0", "id":"curltest", "method": "getbalance", "params": ["*", 6] }'  http://127.0.0.01:9500/
         """
         # NOTE: minconf nt work curently
-        addresses = await self._call('eth_accounts')
-
         async def _get_balance(address):
             balance = (await self._call(
                        'eth_getBalance', [address, "latest"])) or 0
@@ -410,6 +418,10 @@ As a json rpc call
                 balance = hex_to_dec(balance)
             return wei_to_ether(balance)
 
+        if account:
+            return await _get_balance(account)
+
+        addresses = await self._call('eth_accounts')
         return sum(await asyncio.gather(*(_get_balance(address)
                                           for address in addresses)))
 
@@ -549,7 +561,8 @@ Examples:
             'time': None,
             'timereceived': None,
             'details': [],
-            'hex': transaction['input']
+            'hex': transaction['input'],
+            'fee': DEFAUT_FEE,
         }
         if hex_to_dec(transaction['blockHash']) != 0:
             block = await self.getblock(transaction['blockHash'])
@@ -571,19 +584,18 @@ Examples:
                 'amount': operator.neg(trans_info['amount']),
                 'vout': 1,
                 'abandoned': False,
-                'fee': 0,
+                'fee': DEFAUT_FEE,
             }
-            if transaction['blockHash']:
+            if hex_to_dec(transaction['blockHash']):
                 tr_hash, tr_receipt = await asyncio.gather(
                     self._call('eth_getTransactionByHash', [
                         transaction['hash']]),
                     self._call('eth_getTransactionReceipt', [
                         transaction['hash']])
                 )
-                if tr_receipt:
-                    from_['fee'] = (hex_to_dec(tr_hash['gasPrice']) *
-                                    wei_to_ether(
-                                        hex_to_dec(tr_receipt['gasUsed'])))
+                from_['fee'] = (hex_to_dec(tr_hash['gasPrice']) *
+                                wei_to_ether(
+                                    hex_to_dec(tr_receipt['gasUsed'])))
             trans_info['details'].append(from_)
         return trans_info
 
@@ -645,13 +657,24 @@ As a json rpc call
         # TODO: Add amount and address validation
         # TODO: Add minconf logic
         gas = await self._paytxfee_to_etherfee()
-        return await self._call('eth_sendTransaction', [{
-            'from': fromaccount,  # from ???
-            'to': toaddress,  # to
-            'gas': hex(gas['gas_amount']),  # gas amount
-            'gasPrice': hex(gas['gas_price']),  # gas price
-            'value': hex(ether_to_wei(float(amount))),  # value
-        }])
+        try:
+            return await self._call('eth_sendTransaction', [{
+                'from': fromaccount,  # from ???
+                'to': toaddress,  # to
+                'gas': hex(gas['gas_amount']),  # gas amount
+                'gasPrice': hex(gas['gas_price']),  # gas price
+                'value': hex(ether_to_wei(float(amount))),  # value
+            }])
+        except BadResponseError as e:
+            err = e.args[0]['error']
+            if (
+                err['code'] == -32000 and
+                'gas * price + value' in err['message']
+            ):
+                raise BadResponseError({
+                    'error': {'code': -6, 'message': 'Insufficient funds'}
+                })
+            raise
 
     @Method.registry(Category.Wallet)
     async def sendtoaddress(self, address, amount, comment="",
@@ -682,17 +705,8 @@ Examples:
         """
         # TODO: Add subtractfeefromamount logic
         # TODO: Add amount and address validation
-        gas, coinbase_address = await asyncio.gather(
-            self._paytxfee_to_etherfee(),
-            self._call('eth_coinbase')
-        )
-        return await self._call('eth_sendTransaction', [{
-            'from': coinbase_address,  # from ???
-            'to': address,  # to
-            'gas': hex(gas['gas_amount']),  # gas amount
-            'gasPrice': hex(gas['gas_price']),  # gas price
-            'value': hex(ether_to_wei(float(amount))),  # value
-        }])
+        return await self.sendfrom(
+            (await self._call('eth_coinbase')), address, amount)
 
     @Method.registry(Category.Blockchain)
     async def getblockcount(self):
