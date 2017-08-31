@@ -50,20 +50,31 @@ To stop server:
 Implemented JSON-RPC methods
 ----------------------------
 
+Util
+----
+* validateaddress
+* estimatefee
+
 Wallet
 ------
 * getbalance
 * settxfee
 * listaccounts
 * gettransaction
+* sendfrom
 * sendtoaddress
+* walletlock
+* walletpassphrase
+* getnewaddress
 
 Blockchain
 ----------
+* getblockhash
 * getdifficulty
 * getblockcount
 * getbestblockhash
 * getblock
+
 
 Planned add more methods as soon as possible. Read help of some method first before use!
 
@@ -112,6 +123,22 @@ Copy it to your datadir folder or use direct path to it.
 
 Changes
 =======
+
+0.2.0 (2017-08-31)
+------------------
+
+* Added new RPC methods:
+
+  * getblockhash;
+  * validateaddress;
+  * estimatefee;
+  * listsinceblock;
+  * walletpassphrase;
+  * walletlock;
+  * getnewaddress;
+  * sendfrom;
+
+* Added some methods optimizations;
 
 0.1.2 (2017-08-09)
 ------------------

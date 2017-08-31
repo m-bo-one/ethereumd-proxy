@@ -22,6 +22,13 @@ def wei_to_ether(wei):
     return 1.0 * wei / 10**18
 
 
+def gwei_to_ether(wei):
+    '''
+    Convert gwei to ether
+    '''
+    return 1.0 * wei / 10**8
+
+
 def ether_to_wei(ether):
     '''
     Convert ether to wei
