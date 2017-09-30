@@ -45,35 +45,53 @@ To stop server:
 
    $ ethereum-cli -datadir=<path_to_your_dir_with_node_and_ethereum.conf> stop
 
+Also can be used as python client connector:
+
+.. code:: python
+
+    import asyncio
+    import ethereumd
+
+    loop = asyncio.get_event_loop()
+
+    async def go():
+        client = await ethereumd.create_ethereumd_proxy(
+            'http://localhost:8545', loop=loop)
+
+        val = await client.validateaddress('0x6cace0528324a8afc2b157ceba3cdd2a27c4e21f')
+        print(val)  # will print {'isvalid': True, 'address': '0x6cace0528324a8afc2b157ceba3cdd2a27c4e21f', 'scriptPubKey': 'hex', 'ismine': False, 'iswatchonly': False, 'isscript': False, 'pubkey': '0x6cace0528324a8afc2b157ceba3cdd2a27c4e21f', 'iscompressed': False, 'timestamp': None}
+
+        address = await client.getnewaddress(passphrase='admin')
+        print(address)  # will print address like '0x137dd92be1d986eb3af023d0fb6fa8436c3ee5f8'
+
+    loop.run_until_complete(go())
+
 
 
 Implemented JSON-RPC methods
 ----------------------------
 
-Util
-----
-* validateaddress
-* estimatefee
-
-Wallet
-------
-* getbalance
-* settxfee
-* listaccounts
-* gettransaction
-* sendfrom
-* sendtoaddress
-* walletlock
-* walletpassphrase
-* getnewaddress
-
-Blockchain
-----------
-* getblockhash
-* getdifficulty
-* getblockcount
-* getbestblockhash
-* getblock
++-----------------+------------------+------------------+
+| Util            | Wallet           | Blockchain       |
++=================+==================+==================+
+| validateaddress | getbalance       | getblockhash     |
++-----------------+------------------+------------------+
+| estimatefee     | settxfee         | getdifficulty    |
++-----------------+------------------+------------------+
+|                 | listaccounts     | getblockcount    |
++-----------------+------------------+------------------+
+|                 | gettransaction   | getbestblockhash |
++-----------------+------------------+------------------+
+|                 | sendfrom         | getblock         |
++-----------------+------------------+------------------+
+|                 | sendtoaddress    |                  |
++-----------------+------------------+------------------+
+|                 | walletlock       |                  |
++-----------------+------------------+------------------+
+|                 | walletpassphrase |                  |
++-----------------+------------------+------------------+
+|                 | getnewaddress    |                  |
++-----------------+------------------+------------------+
 
 
 Planned add more methods as soon as possible. Read help of some method first before use!
@@ -121,69 +139,10 @@ Sample of ethereum.conf
 
 Copy it to your datadir folder or use direct path to it.
 
-Changes
-=======
-
-0.2.0 (2017-08-31)
-------------------
-
-* Added new RPC methods:
-
-  * getblockhash;
-  * validateaddress;
-  * estimatefee;
-  * listsinceblock;
-  * walletpassphrase;
-  * walletlock;
-  * getnewaddress;
-  * sendfrom;
-
-* Added some methods optimizations;
-
-0.1.2 (2017-08-09)
-------------------
-
-* Increased testcov to 77%;
-* Added more tests for methods;
-* Fix error with alernotify;
-
-0.1.1 (2017-07-31)
-------------------
-
-* Added tests and codecov;
-
-0.1 (2017-07-25)
-----------------
-
-* Added cli for proxy RPC server;
-* Some bug fixes in API;
-* Added new RPC methods:
-
-  * getbalance;
-  * settxfee;
-  * listaccounts;
-  * gettransaction;
-  * getdifficulty;
-  * getblockcount;
-  * getbestblockhash;
-  * getblock;
-  * sendtoaddress;
-
-
-0.1a (2017-07-22)
------------------
-
-* Initial release
-* Added RPC methods:
-
-  * gettransaction;
-  * getblock;
-  * listaccounts;
 
 TODO
 ----
 * Add more RPC methods;
-* Add tests for every RPC method and signal;
 * Track orphaned blocks;
 
 

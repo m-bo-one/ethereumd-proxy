@@ -1,26 +1,37 @@
-# -*- coding: utf-8 -*-
+import os
+import re
+
 from setuptools import find_packages, setup
-from functools import reduce
 
 
-with open('README.rst', 'rb') as f:
-    readme = f.read().decode('utf-8')
+def read(*parts):
+    with open(os.path.join(*parts), 'rt') as f:
+        return f.read().strip()
 
 
-def get_version():
-    import ethereumd
-    return reduce(lambda x, y: "{0}.{1}".format(x, y), ethereumd.__version__)
+def read_version():
+    regexp = re.compile(r"^__version__\W*=\W*'([\d.abrc]+)'")
+    init_py = os.path.join(os.path.dirname(__file__),
+                           'ethereumd', '__init__.py')
+    with open(init_py) as f:
+        for line in f:
+            match = regexp.match(line)
+            if match is not None:
+                return match.group(1)
+        else:
+            raise RuntimeError('Cannot find version in '
+                               'ethereumd/__init__.py')
 
 
 setup(
     name='ethereumd-proxy',
-    version=get_version(),
+    version=read_version(),
     description='Proxy client-server for Ethereum node using '
                 'JSON-RPC interface.',
-    long_description=readme,
+    long_description="\n\n".join((read('README.rst'), read('CHANGES.txt'))),
     py_modules=['ethereum_cli'],
     author='Bogdan Kurinnyi',
-    author_email='bogdankurinnyi.dev1@gmail.com',
+    author_email='bogdankurinniy.dev1@gmail.com',
     url='https://github.com/DeV1doR/ethereumd-proxy',
     license='MIT',
     packages=find_packages(),
