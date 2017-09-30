@@ -7,7 +7,7 @@ from collections import Mapping
 import requests
 import click
 
-from ethereumd.proxy.base import ProxyMethod
+from ethereumd.proxy import EthereumProxy
 from ethereumd.server import RPCServer
 
 
@@ -193,7 +193,7 @@ Options:
                     error = response['error']
                     click.echo('error code: %s' % error['code'])
                     if error['code'] == -1:
-                        method = getattr(ProxyMethod, cmd_name)
+                        method = getattr(EthereumProxy, cmd_name)
                         click.echo('error message:\n%s' % method.__doc__)
                     else:
                         click.echo('error message:\n%s' % error['message'])

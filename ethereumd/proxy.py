@@ -1,11 +1,13 @@
 import operator
 import asyncio
 import re
+import logging
 from enum import IntEnum
-from abc import abstractmethod
 
-from ..exceptions import BadResponseError
-from ..utils import hex_to_dec, wei_to_ether, ether_to_gwei, ether_to_wei
+from aioethereum import create_ethereum_client
+from aioethereum.errors import BadResponseError
+
+from .utils import hex_to_dec, wei_to_ether, ether_to_gwei, ether_to_wei
 
 
 GAS_AMOUNT = 21000
@@ -42,7 +44,11 @@ class Method:
                 yield (Category(int(key.replace('category_', ''))).name, funcs)
 
 
-class ProxyMethod:
+class EthereumProxy:
+
+    def __init__(self, rpc):
+        self._rpc = rpc
+        self._log = logging.getLogger('ethereum-proxy')
 
     async def help(self, command=None):
         """"help ( "command" )
@@ -56,7 +62,7 @@ Result:
 "text"     (string) The help text
         """
         if command:
-            func = getattr(ProxyMethod, command, None)
+            func = getattr(EthereumProxy, command, None)
             if func:
                 return func.__doc__
             return 'help: unknown command: %s' % command
@@ -65,7 +71,7 @@ Result:
         for category, funcs in Method.get_categories():
             result += "== %s ==\n" % category
             for func in funcs:
-                doc = getattr(ProxyMethod, func).__doc__
+                doc = getattr(EthereumProxy, func).__doc__
                 if not doc:
                     result += func + '\n'
                 else:
@@ -116,7 +122,7 @@ Examples:
                 'address': address,
                 'scriptPubKey': 'hex',
                 'ismine': (True if address in
-                           (await self._call('eth_accounts')) else False),
+                           (await self._rpc.eth_accounts()) else False),
                 'iswatchonly': False,  # TODO
                 'isscript': False,
                 'pubkey': address,
@@ -172,26 +178,20 @@ Examples:
         # TODO: Optimization??
         # TODO: Correct return data
         if target_confirmations < 1:
-            raise BadResponseError({
-                'error': {
-                    'code': -8,
-                    'message': 'Invalid parameter'
-                }
-            })
+            raise BadResponseError('Invalid parameter', code=-8)
         transactions = []
 
         latest_block, from_block, addresses = await asyncio.gather(
-            self._call('eth_getBlockByNumber', ['latest', True]),
-            self._call('eth_getBlockByHash', [blockhash, True]),
-            self._call('eth_accounts')
+            self._rpc.eth_getBlockByNumber(),
+            self._rpc.eth_getBlockByHash(blockhash),
+            self._rpc.eth_accounts()
         )
         if target_confirmations == 1:
             lst_hash = await self.getbestblockhash()
         else:
             need_height = hex_to_dec(latest_block['number']) + 1 - \
                 target_confirmations
-            lst_hash = (await self._call('eth_getBlockByNumber', [
-                        hex(need_height), True]))['hash']
+            lst_hash = (await self._rpc.eth_getBlockByNumber(need_height))['hash']
         if not from_block:
             return {
                 'transactions': transactions,
@@ -235,8 +235,7 @@ Examples:
         blocks = [from_block]
         blocks.extend(filter(lambda b: b is not None,
                              await asyncio.gather(*(
-                                 self._call('eth_getBlockByNumber',
-                                            [hex(height), True])
+                                 self._rpc.eth_getBlockByNumber(height)
                                  for height in range(start_height,
                                                      end_height)))))
         blocks.append(latest_block)
@@ -281,12 +280,8 @@ Lock the wallet again (before 60 seconds)
 As json rpc call
 > curl -X POST -H 'Content-Type: application/json' -d '{"jsonrpc": "1.0", "id":"curltest", "method": "walletpassphrase", "params": ["0x6cace0528324a8afc2b157ceba3cdd2a27c4e21f", "my pass phrase", 60] }'  http://127.0.0.01:9500/
         """
-        args = [address]
-        if passphrase or (not passphrase and timeout):
-            args.append(passphrase)
-        if timeout:
-            args.append(timeout)
-        await self._call('personal_unlockAccount', args)
+        return await self._rpc.personal_unlockAccount(address, passphrase,
+                                                      timeout)
 
     @Method.registry(Category.Wallet)
     async def walletlock(self, address):
@@ -307,7 +302,7 @@ Clear the passphrase since we are done before 2 minutes is up
 As json rpc call
 > curl -X POST -H 'Content-Type: application/json' -d '{"jsonrpc": "1.0", "id":"curltest", "method": "walletlock", "params": ["0x6cace0528324a8afc2b157ceba3cdd2a27c4e21f"] }'  http://127.0.0.01:9500/
         """
-        await self._call('personal_lockAccount', [address])
+        return await self._rpc.personal_lockAccount(address)
 
     @Method.registry(Category.Blockchain)
     async def getblockhash(self, height):
@@ -326,14 +321,12 @@ Examples:
 > curl -X POST -H 'Content-Type: application/json' -d '{"jsonrpc": "1.0", "id":"curltest", "method": "getblockhash", "params": [1000] }'  http://127.0.0.01:9500/
         """
         if height < 0:
-            raise BadResponseError({
-                'error': {'code': -8, 'message': 'Block height out of range'}
-            })
-        block = await self._call('eth_getBlockByNumber', [hex(height), False])
+            raise BadResponseError('Block height out of range', code=-8)
+
+        block = await self._rpc.eth_getBlockByNumber(height)
         if block is None:
-            raise BadResponseError({
-                'error': {'code': -8, 'message': 'Block height out of range'}
-            })
+            raise BadResponseError('Block height out of range', code=-8)
+
         return block['hash']
 
     @Method.registry(Category.Blockchain)
@@ -349,7 +342,7 @@ Examples:
 > ethereum-cli getdifficulty
 > curl -X POST -H 'Content-Type: application/json' -d '{"jsonrpc": "1.0", "id":"curltest", "method": "getdifficulty", "params": [] }'  http://127.0.0.01:9500/
         """
-        return hex_to_dec(await self._call('eth_hashrate'))
+        return await self._rpc.eth_hashrate()
 
     @Method.registry(Category.Util)
     async def estimatefee(self, nblocks=1):
@@ -412,8 +405,7 @@ As a json rpc call
         """
         # NOTE: minconf nt work curently
         async def _get_balance(address):
-            balance = (await self._call(
-                       'eth_getBalance', [address, "latest"])) or 0
+            balance = (await self._rpc.eth_getBalance(address)) or 0
             if not isinstance(balance, (int, float)):
                 balance = hex_to_dec(balance)
             return wei_to_ether(balance)
@@ -421,7 +413,7 @@ As a json rpc call
         if account:
             return await _get_balance(account)
 
-        addresses = await self._call('eth_accounts')
+        addresses = await self._rpc.eth_accounts()
         return sum(await asyncio.gather(*(_get_balance(address)
                                           for address in addresses)))
 
@@ -442,9 +434,8 @@ Examples:
 > curl -X POST -H 'Content-Type: application/json' -d '{"jsonrpc": "1.0", "id":"curltest", "method": "settxfee", "params": [0.00042] }'  http://127.0.0.01:9500/
         """
         if isinstance(amount, (int, float)) and amount <= 0:
-            raise BadResponseError({
-                'error': {'code': -3, 'message': 'Amount out of range'}
-            })
+            raise BadResponseError('Amount out of range', code=-3)
+
         try:
             self._paytxfee = float(amount)
         except Exception:
@@ -481,12 +472,11 @@ As json rpc call
 > curl -X POST -H 'Content-Type: application/json' -d '{"jsonrpc": "1.0", "id":"curltest", "method": "listaccounts", "params": [6] }'  http://127.0.0.01:9500/
         """
         # NOTE: minconf nt work curently
-        addresses = await self._call('eth_accounts')
+        addresses = await self._rpc.eth_accounts()
         accounts = {}
         for i, address in enumerate(addresses):
             # account = 'Account #{0}'.format(i)
-            balance = (await self._call(
-                       'eth_getBalance', [address, "latest"])) or 0
+            balance = (await self._rpc.eth_getBalance(address)) or 0
             if not isinstance(balance, (int, float)):
                 balance = hex_to_dec(balance)
             accounts[address] = wei_to_ether(balance)
@@ -539,16 +529,13 @@ Examples:
         """
         # TODO: Make workable include_watchonly flag
         transaction, addresses = await asyncio.gather(
-            self._call('eth_getTransactionByHash', [txid]),
-            self._call('eth_accounts')
+            self._rpc.eth_getTransactionByHash(txid),
+            self._rpc.eth_accounts()
         )
         if transaction is None:
-            raise BadResponseError({
-                'error': {
-                    'code': -5,
-                    'message': 'Invalid or non-wallet transaction id'
-                }
-            })
+            raise BadResponseError('Invalid or non-wallet transaction id',
+                                   code=-5)
+
         trans_info = {
             'amount': wei_to_ether(hex_to_dec(transaction['value'])),
             'blockhash': transaction['blockHash'],
@@ -588,10 +575,8 @@ Examples:
             }
             if hex_to_dec(transaction['blockHash']):
                 tr_hash, tr_receipt = await asyncio.gather(
-                    self._call('eth_getTransactionByHash', [
-                        transaction['hash']]),
-                    self._call('eth_getTransactionReceipt', [
-                        transaction['hash']])
+                    self._rpc.eth_getTransactionByHash(transaction['hash']),
+                    self._rpc.eth_getTransactionReceipt(transaction['hash'])
                 )
                 from_['fee'] = (hex_to_dec(tr_hash['gasPrice']) *
                                 wei_to_ether(
@@ -615,7 +600,7 @@ Examples:
 > ethereum-cli getnewaddress "passphrase"
 > curl -X POST -H 'Content-Type: application/json' -d '{"jsonrpc": "1.0", "id":"curltest", "method": "getnewaddress", "params": ["passphrase"] }'  http://127.0.0.01:9500/
         """
-        return await self._call('personal_newAccount', [passphrase])
+        return await self._rpc.personal_newAccount(passphrase)
 
     @Method.registry(Category.Wallet)
     async def sendfrom(self, fromaccount, toaddress, amount,
@@ -658,22 +643,19 @@ As a json rpc call
         # TODO: Add minconf logic
         gas = await self._paytxfee_to_etherfee()
         try:
-            return await self._call('eth_sendTransaction', [{
-                'from': fromaccount,  # from ???
-                'to': toaddress,  # to
-                'gas': hex(gas['gas_amount']),  # gas amount
-                'gasPrice': hex(gas['gas_price']),  # gas price
-                'value': hex(ether_to_wei(float(amount))),  # value
-            }])
+            return await self._rpc.eth_sendTransaction(
+                fromaccount,  # from ???
+                toaddress,  # to
+                gas['gas_amount'],  # gas amount
+                gas['gas_price'],  # gas price
+                ether_to_wei(float(amount)),  # value
+            )
         except BadResponseError as e:
-            err = e.args[0]['error']
             if (
-                err['code'] == -32000 and
-                'gas * price + value' in err['message']
+                e.code == -32000 and
+                'gas * price + value' in e.msg
             ):
-                raise BadResponseError({
-                    'error': {'code': -6, 'message': 'Insufficient funds'}
-                })
+                raise BadResponseError('Insufficient funds', code=-6)
             raise
 
     @Method.registry(Category.Wallet)
@@ -705,8 +687,8 @@ Examples:
         """
         # TODO: Add subtractfeefromamount logic
         # TODO: Add amount and address validation
-        return await self.sendfrom(
-            (await self._call('eth_coinbase')), address, amount)
+        return await self.sendfrom((await self._rpc.eth_coinbase()),
+                                   address, amount)
 
     @Method.registry(Category.Blockchain)
     async def getblockcount(self):
@@ -722,7 +704,7 @@ Examples:
 > curl -X POST -H 'Content-Type: application/json' -d '{"jsonrpc": "1.0", "id":"curltest", "method": "getblockcount", "params": [] }'  http://127.0.0.01:9500/
         """
         # TODO: What happen when no blocks in db?
-        return hex_to_dec(await self._call('eth_blockNumber'))
+        return await self._rpc.eth_blockNumber()
 
     @Method.registry(Category.Blockchain)
     async def getbestblockhash(self):
@@ -738,11 +720,10 @@ Examples:
 > curl -X POST -H 'Content-Type: application/json' -d '{"jsonrpc": "1.0", "id":"curltest", "method": "getbestblockhash", "params": [] }'  http://127.0.0.01:9500/
         """
         # TODO: What happen when no blocks in db?
-        block = await self._call('eth_getBlockByNumber', ['latest', False])
+        block = await self._rpc.eth_getBlockByNumber(tx_objects=False)
         if block is None:
-            raise BadResponseError({
-                'error': {'code': -5, 'message': 'Block not found'}
-            })
+            raise BadResponseError('Block not found', code=-5)
+
         return block['hash']
 
     @Method.registry(Category.Blockchain)
@@ -788,17 +769,16 @@ Examples:
 > ethereum-cli getblock "0x8b22f9aa6c27231fb4acc587300abadd259f501ba99ef18d11e9e4dfa741eb39"
 > curl -X POST -H 'Content-Type: application/json' -d '{"jsonrpc": "1.0", "id":"curltest", "method": "getblock", "params": ["0x8b22f9aa6c27231fb4acc587300abadd259f501ba99ef18d11e9e4dfa741eb39"] }'  http://127.0.0.01:9500/
         """
-        block = await self._call('eth_getBlockByHash', [blockhash, False])
+        block = await self._rpc.eth_getBlockByHash(blockhash, False)
         if block is None:
-            raise BadResponseError({
-                'error': {'code': -5, 'message': 'Block not found'}
-            })
+            raise BadResponseError('Block not found', code=-5)
+
         if not verbose:
             return block['hash']
 
         next_block, confirmations = await asyncio.gather(
-            self._call('eth_getBlockByNumber', [
-                hex(hex_to_dec(block['number']) + 1), False]),
+            self._rpc.eth_getBlockByNumber(
+                hex_to_dec(block['number']) + 1, False),
             self._get_confirmations(block),
         )
 
@@ -825,19 +805,13 @@ Examples:
             data['nextblockhash'] = next_block['hash']
         return data
 
-    # ABSTRACT METHODS
-
-    @abstractmethod
-    def _call(self, method, params=None, _id=None):
-        pass
-
     # UTILS METHODS
 
     async def _paytxfee_to_etherfee(self):
         try:
             gas_price = ether_to_wei(self._paytxfee / GAS_AMOUNT)
         except AttributeError:
-            gas_price = hex_to_dec(await self._call('eth_gasPrice'))
+            gas_price = await self._rpc.eth_gasPrice()
         finally:
             return {
                 'gas_amount': GAS_AMOUNT,
@@ -845,15 +819,19 @@ Examples:
             }
 
     async def _calculate_confirmations(self, response):
-        return (hex_to_dec(await self._call('eth_blockNumber')) -
+        return (await self._rpc.eth_blockNumber() -
                 hex_to_dec(response['number']))
 
     async def _get_confirmations(self, block):
-        last_block_number = await self._call('eth_blockNumber')
+        last_block_number = await self._rpc.eth_blockNumber()
         if not last_block_number:
             raise RuntimeError('Blockchain not synced.')
 
         if not block['number']:
             return 0
-        return (hex_to_dec(last_block_number) -
-                hex_to_dec(block['number']))
+        return (last_block_number - hex_to_dec(block['number']))
+
+
+async def create_ethereumd_proxy(uri, timeout=60, *, loop=None):
+    rpc = await create_ethereum_client(uri, timeout, loop=loop)
+    return EthereumProxy(rpc)

@@ -2,7 +2,7 @@ import asyncio
 import logging
 import functools
 
-from .exceptions import BadResponseError
+from aioethereum.errors import BadResponseError
 
 
 def alertnotify(func_or_none=None, *, exceptions=(Exception,)):
@@ -47,6 +47,7 @@ class Poller:
     def __init__(self, proxy, cmds=None, *, loop=None):
         self._log = logging.getLogger('poller')
         self._proxy = proxy
+        self._rpc = proxy._rpc
         self._cmds = cmds or {}
         self._loop = loop or asyncio.get_event_loop()
         self._queue = {
@@ -85,10 +86,9 @@ class Poller:
         if not bhashes:
             return
         self._log.info('New blocks: %s', bhashes)
-        accounts = await self._proxy._call('eth_accounts')
+        accounts = await self._rpc.eth_accounts()
         for bhash in bhashes:
-            block = await self._proxy._call('eth_getBlockByHash',
-                                            [bhash, False])
+            block = await self._rpc.eth_getBlockByHash(bhash, False)
             for txid in block['transactions']:
                 if (await self._is_account_trans(txid, accounts)):
                     await self.defqueue \
@@ -103,7 +103,7 @@ class Poller:
         if not txids:
             return
         self._log.info('New transactions: %s', txids)
-        accounts = await self._proxy._call('eth_accounts')
+        accounts = await self._rpc.eth_accounts()
 
         async def _tr_sender(txid):
             if (await self._is_account_trans(txid, accounts)):
@@ -114,9 +114,8 @@ class Poller:
         await asyncio.gather(*(_tr_sender(txid) for txid in txids))
 
     async def _is_account_trans(self, txid, accounts=None):
-        accounts = accounts or (await self._proxy._call('eth_accounts'))
-        trans = await self._proxy._call('eth_getTransactionByHash',
-                                        [txid])
+        accounts = accounts or (await self._rpc.eth_accounts())
+        trans = await self._rpc.eth_getTransactionByHash(txid)
         if not trans:
             self._log.warning('Something happened with transaction %s',
                               txid)
@@ -159,7 +158,7 @@ class Poller:
             return True
 
     async def _build_filter(self, fname: str) -> str:
-        quantity = await self._proxy._call(self._pollFilter[fname])
+        quantity = await self._rpc._call(self._pollFilter[fname])
         setattr(self, '_%s' % fname, quantity)
         return quantity
 
@@ -168,7 +167,7 @@ class Poller:
         """
         try:
             quantity = getattr(self, '_%s' % fname)
-            return await self._proxy._call('eth_getFilterChanges', [quantity])
+            return await self._rpc.eth_getFilterChanges(quantity)
         except AttributeError:
             self._log.warn('Filter "%s" not initialized, created new one.',
                            fname)

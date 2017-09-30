@@ -42,6 +42,7 @@ setup(
         'click==6.7',
         'requests==2.9.1',
         'ujson==1.35',
+        'aioethereum==0.1.0',
     ],
     entry_points='''
     [console_scripts]

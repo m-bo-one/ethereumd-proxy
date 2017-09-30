@@ -1,17 +1,16 @@
 import logging
 import asyncio
 
+from aioethereum.errors import BadResponseError
 from sanic import Sanic, response
 from sanic.handlers import ErrorHandler
 from sanic.server import serve
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-
-from .proxy import create_rpc_proxy, create_ipc_proxy
+from .proxy import create_ethereumd_proxy
 from .poller import Poller
 from .utils import create_default_logger, GREETING
-from .exceptions import BadResponseError
 
 
 create_default_logger(logging.WARNING)
@@ -34,7 +33,7 @@ class RPCServer:
     def __init__(self, ethpconnect='127.0.0.1', ethpport=9500,
                  rpcconnect='127.0.0.1', rpcport=8545,
                  ipcconnect=None, blocknotify=None, walletnotify=None,
-                 alertnotify=None, *, loop=None):
+                 alertnotify=None, tls=False, *, loop=None):
         self._loop = loop or asyncio.get_event_loop()
         self._app = Sanic(__name__,
                           log_config=None,
@@ -47,6 +46,7 @@ class RPCServer:
         self._blocknotify = blocknotify
         self._walletnotify = walletnotify
         self._alertnotify = alertnotify
+        self._tls = tls
         self._log = logging.getLogger('rpc_server')
         self.routes()
 
@@ -64,13 +64,14 @@ class RPCServer:
     def before_server_start(self):
         @self._app.listener('before_server_start')
         async def initialize_scheduler(app, loop):
-            if self._unix_socket:
-                self._proxy = await create_ipc_proxy(self._unix_socket,
-                                                     loop=loop)
-            else:
-                self._proxy = await create_rpc_proxy(self._rpc_host,
-                                                     self._rpc_port,
-                                                     loop=loop)
+            schema = 'http'
+            if self._tls:
+                schema += 's'
+
+            uri = ('{0}://{1}:{2}'.format(
+                   schema, self._rpc_host, self._rpc_port)
+                   if not self._unix_socket else self._unix_socket)
+            self._proxy = await create_ethereumd_proxy(uri, loop=loop)
             self._poller = Poller(self._proxy, self.cmds, loop=loop)
             self._scheduler = AsyncIOScheduler({'event_loop': loop})
             if self._poller.has_blocknotify:
@@ -93,12 +94,22 @@ class RPCServer:
     async def handler_index(self, request):
         data = request.json
         try:
-            result = (await getattr(self._proxy, data['method'])
-                      (*data['params']))
+            id_, method, params = data['id'], data['method'], data['params']
+        except KeyError:
+            return response.json({
+                'id': data.get('id', 0),
+                'result': None,
+                'error': {
+                    'message': 'Invalid rpc 2.0 structure',
+                    'code': -40001
+                }
+            })
+        try:
+            result = (await getattr(self._proxy, method)(*params))
         except AttributeError as e:
             self._log.exception(e)
             return response.json({
-                'id': data['id'],
+                'id': id_,
                 'result': None,
                 'error': {
                     'message': 'Method not found',
@@ -108,7 +119,7 @@ class RPCServer:
         except TypeError as e:
             self._log.exception(e)
             return response.json({
-                'id': data['id'],
+                'id': id_,
                 'result': None,
                 'error': {
                     'message': e.args[0],
@@ -117,13 +128,16 @@ class RPCServer:
             })
         except BadResponseError as e:
             return response.json({
-                'id': data['id'],
+                'id': id_,
                 'result': None,
-                'error': e.args[0]['error']
+                'error': {
+                    'message': e.msg,
+                    'code': e.code
+                }
             })
         else:
             return response.json({
-                'id': data['id'],
+                'id': id_,
                 'result': result,
                 'error': None
             })

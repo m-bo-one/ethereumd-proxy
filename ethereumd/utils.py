@@ -26,7 +26,7 @@ def gwei_to_ether(wei):
     '''
     Convert gwei to ether
     '''
-    return 1.0 * wei / 10**8
+    return 1.0 * wei / 10**9
 
 
 def ether_to_wei(ether):

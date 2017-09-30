@@ -3,8 +3,8 @@ from asynctest.mock import patch, CoroutineMock
 import pytest
 
 from ethereumd.poller import Poller, alertnotify
-from ethereumd.proxy.rpc import RPCProxy
-from ethereumd.exceptions import BadResponseError
+from aioethereum import AsyncIOHTTPClient
+from aioethereum.errors import BadResponseError
 
 from .base import BaseTestRunner, setup_proxies
 from .fakers import fake_call
@@ -78,7 +78,7 @@ class TestPoller(BaseTestRunner):
     async def test_call_blocknotify_and_has_block(self):
         with patch('ethereumd.poller.Poller.poll'):
             poller = Poller(self.rpc_proxy, cmds={'blocknotify': 'echo "%s"'})
-        with patch.object(RPCProxy, '_call', side_effect=fake_call()):
+        with patch.object(AsyncIOHTTPClient, '_call', side_effect=fake_call()):
             with patch.object(Poller, '_exec_command',
                               side_effect=lambda x, y: None) as exec_mock:
                 assert exec_mock.call_count == 0
@@ -90,7 +90,7 @@ class TestPoller(BaseTestRunner):
     async def test_call_blocknotify_and_has_no_block(self):
         with patch('ethereumd.poller.Poller.poll'):
             poller = Poller(self.rpc_proxy, cmds={'blocknotify': 'echo "%s"'})
-        with patch.object(RPCProxy, '_call',
+        with patch.object(AsyncIOHTTPClient, '_call',
                           side_effect=fake_call(['-eth_getFilterChanges'])):
             with patch.object(Poller, '_exec_command',
                               side_effect=lambda x, y: None) as exec_mock:
@@ -103,7 +103,7 @@ class TestPoller(BaseTestRunner):
     async def test_call_walletnotify_and_has_trans(self):
         with patch('ethereumd.poller.Poller.poll'):
             poller = Poller(self.rpc_proxy, cmds={'walletnotify': 'echo "%s"'})
-        with patch.object(RPCProxy, '_call', side_effect=fake_call()):
+        with patch.object(AsyncIOHTTPClient, '_call', side_effect=fake_call()):
             with patch.object(Poller, '_exec_command',
                               side_effect=lambda x, y: None) as exec_mock:
                 assert exec_mock.call_count == 0
@@ -115,7 +115,7 @@ class TestPoller(BaseTestRunner):
     async def test_call_walletnotify_and_has_no_trans(self):
         with patch('ethereumd.poller.Poller.poll'):
             poller = Poller(self.rpc_proxy, cmds={'walletnotify': 'echo "%s"'})
-        with patch.object(RPCProxy, '_call',
+        with patch.object(AsyncIOHTTPClient, '_call',
                           side_effect=fake_call(['-eth_getFilterChanges'])):
             with patch.object(Poller, '_exec_command',
                               side_effect=lambda x, y: None) as exec_mock:
@@ -160,7 +160,7 @@ class TestPoller(BaseTestRunner):
         with patch('ethereumd.poller.Poller.poll'):
             poller = Poller(self.rpc_proxy)
 
-        with patch.object(RPCProxy, '_call', side_effect=fake_call()):
+        with patch.object(AsyncIOHTTPClient, '_call', side_effect=fake_call()):
             txid = '0x9c864dd0e7fdcfb3bd7197020ac311cbacef1aa29b49791223427bbedb6d36ad'
             is_account_trans = await poller._is_account_trans(txid)
         assert is_account_trans is True
@@ -171,7 +171,8 @@ class TestPoller(BaseTestRunner):
         with patch('ethereumd.poller.Poller.poll'):
             poller = Poller(self.rpc_proxy)
 
-        with patch.object(RPCProxy, '_call', side_effect=fake_call('-')):
+        with patch.object(AsyncIOHTTPClient, '_call',
+                          side_effect=fake_call('-')):
             txid = '0x9c864dd0e7fdcfb3bd7197020ac311cbacef1aa29b49791223427bbedb6d36ad'
             is_account_trans = await poller._is_account_trans(txid)
         assert is_account_trans is False
@@ -182,7 +183,7 @@ class TestPoller(BaseTestRunner):
         with patch('ethereumd.poller.Poller.poll'):
             poller = Poller(self.rpc_proxy)
 
-        with patch.object(RPCProxy, '_call', side_effect=fake_call()):
+        with patch.object(AsyncIOHTTPClient, '_call', side_effect=fake_call()):
             # latest filter for blocks
             assert hasattr(poller, '_latest') is False, \
                 'Poller must not have here _latest attr'
@@ -203,7 +204,8 @@ class TestPoller(BaseTestRunner):
         with patch('ethereumd.poller.Poller.poll'):
             poller = Poller(self.rpc_proxy)
 
-        with patch.object(RPCProxy, '_call', side_effect=fake_call('-')):
+        with patch.object(AsyncIOHTTPClient, '_call',
+                          side_effect=fake_call('-')):
             with pytest.raises(KeyError) as excinfo:
                 await poller._build_filter('doesnotexists')
             assert 'doesnotexists' in str(excinfo)
@@ -214,9 +216,10 @@ class TestPoller(BaseTestRunner):
         with patch('ethereumd.poller.Poller.poll'):
             poller = Poller(self.rpc_proxy)
 
-        with patch.object(RPCProxy, '_call',
-                          side_effect=return_once(BadResponseError,
-                                                  then=fake_call())):
+        with patch.object(AsyncIOHTTPClient, '_call',
+                          side_effect=return_once(
+                              lambda: BadResponseError('test', code=-99999999),
+                              then=fake_call())):
             poller._pending = '0x6f4111062b3db311e6521781f4ef0046'
             await poller._poll_with_reconnect('pending')
 

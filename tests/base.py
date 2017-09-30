@@ -5,7 +5,7 @@ import time
 from urllib.request import urlopen
 from urllib.error import URLError
 
-from ethereumd.proxy import create_rpc_proxy, create_ipc_proxy
+from ethereumd.proxy import create_ethereumd_proxy
 
 
 NODE_PORT = 30375
@@ -25,11 +25,8 @@ def is_hex(s):
 
 # TODO: replace from proxy call in future
 async def quick_unlock_account(proxy, duration=5):
-    return await proxy._call('personal_unlockAccount', [
-        (await proxy._call('eth_accounts'))[0],
-        'admin',
-        duration
-    ])
+    return await proxy._rpc.personal_unlockAccount(
+        (await proxy._rpc.eth_accounts()[0]), 'admin', duration)
 
 
 def setup_proxies(fn):
@@ -37,11 +34,11 @@ def setup_proxies(fn):
     async def _wrapper(self, event_loop, *args, **kwargs):
         self.proxies = []
         self.loop = asyncio.get_event_loop()
-        self.rpc_proxy = await create_rpc_proxy(port=RPC_PORT,
-                                                loop=event_loop)
+        self.rpc_proxy = await create_ethereumd_proxy(
+            'http://127.0.0.1:%s' % RPC_PORT, loop=event_loop)
         self.proxies.append(self.rpc_proxy)
-        self.ipc_proxy = await create_ipc_proxy(ipc_path=UNIX_PATH,
-                                                loop=event_loop)
+        self.ipc_proxy = await create_ethereumd_proxy(
+            'unix://%s' % UNIX_PATH, loop=event_loop)
         self.proxies.append(self.ipc_proxy)
         return await fn(self, *args, **kwargs)
 

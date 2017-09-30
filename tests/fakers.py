@@ -1,4 +1,4 @@
-from ethereumd.exceptions import BadResponseError
+from aioethereum.errors import BadResponseError
 
 
 def fake_call(methods='*'):
@@ -22,15 +22,9 @@ def fake_call(methods='*'):
                     if _allowed_method(method) else [])
         elif method == 'eth_getTransactionByHash':
             if len(params) < 1:
-                raise BadResponseError({
-                    'jsonrpc': '2.0',
-                    'error': {
-                        'message': 'missing value for required argument %s' %
-                        len(params),
-                        'code': -32602
-                    },
-                    'id': 1
-                })
+                raise BadResponseError(
+                    'missing value for required argument %s' % len(params),
+                    code=-32602)
             return {
                 'blockHash': '0x6d18d84c577f99f8073c80ad5200c3da0e5a64de98b4c07cb2d84a8786682360',
                 'blockNumber': '0x63a',
@@ -49,15 +43,9 @@ def fake_call(methods='*'):
             } if _allowed_method(method) else None
         elif method == 'eth_getBlockByHash':
             if len(params) < 2:
-                raise BadResponseError({
-                    'jsonrpc': '2.0',
-                    'error': {
-                        'message': 'missing value for required argument %s' %
-                        len(params),
-                        'code': -32602
-                    },
-                    'id': 1
-                })
+                raise BadResponseError(
+                    'missing value for required argument %s' % len(params),
+                    code=-32602)
             return {
                 'difficulty': '0x3cd85',
                 'extraData': '0xd783010606846765746887676f312e382e31856c696e7578',
@@ -88,25 +76,14 @@ def fake_call(methods='*'):
                     if _allowed_method(method) else None)
         elif method == 'eth_getFilterChanges':
             if len(params) < 1:
-                raise BadResponseError({
-                    'jsonrpc': '2.0',
-                    'error': {
-                        'message': 'missing value for required argument %s' %
-                        len(params),
-                        'code': -32602
-                    },
-                    'id': 1
-                })
+                raise BadResponseError(
+                    'missing value for required argument %s' % len(params),
+                    code=-32602)
+
             return (['0x9c864dd0e7fdcfb3bd7197020ac311cbacef1aa29b49791223427bbedb6d36ad']
                     if _allowed_method(method) else [])
         else:
-            raise BadResponseError({
-                'jsonrpc': '2.0',
-                'error': {
-                    'message': 'The method %s does not exist/is not available' %
-                    method,
-                    'code': -32601
-                },
-                'id': 1}
-            )
+            raise BadResponseError(
+                'The method %s does not exist/is not available' % method,
+                code=-32601)
     return _wrapper
