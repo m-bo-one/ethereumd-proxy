@@ -51,6 +51,17 @@ class RPCServer:
         self.routes()
 
     @property
+    def endpoint(self):
+        schema = 'http'
+        if self._tls:
+            schema += 's'
+
+        return ('{0}://{1}:{2}'.format(
+                schema, self._rpc_host, self._rpc_port)
+                if not self._unix_socket
+                else 'unix://{0}'.format(self._unix_socket))
+
+    @property
     def cmds(self):
         cmds = {}
         if self._blocknotify:
@@ -64,14 +75,8 @@ class RPCServer:
     def before_server_start(self):
         @self._app.listener('before_server_start')
         async def initialize_scheduler(app, loop):
-            schema = 'http'
-            if self._tls:
-                schema += 's'
-
-            uri = ('{0}://{1}:{2}'.format(
-                   schema, self._rpc_host, self._rpc_port)
-                   if not self._unix_socket else self._unix_socket)
-            self._proxy = await create_ethereumd_proxy(uri, loop=loop)
+            self._proxy = await create_ethereumd_proxy(self.endpoint,
+                                                       loop=loop)
             self._poller = Poller(self._proxy, self.cmds, loop=loop)
             self._scheduler = AsyncIOScheduler({'event_loop': loop})
             if self._poller.has_blocknotify:
@@ -84,6 +89,7 @@ class RPCServer:
                                         seconds=1)
             if self._scheduler.get_jobs():
                 self._scheduler.start()
+        return initialize_scheduler
 
     def routes(self):
         self._app.add_route(self.handler_index, '/',
@@ -94,14 +100,15 @@ class RPCServer:
     async def handler_index(self, request):
         data = request.json
         try:
-            id_, method, params = data['id'], data['method'], data['params']
+            id_, method, params, _ = data['id'], \
+                data['method'], data['params'], data['jsonrpc']
         except KeyError:
             return response.json({
                 'id': data.get('id', 0),
                 'result': None,
                 'error': {
                     'message': 'Invalid rpc 2.0 structure',
-                    'code': -40001
+                    'code': -32602
                 }
             })
         try:
@@ -147,7 +154,7 @@ class RPCServer:
                           request.args, request.body)
         return response.json({'status': 'OK'})
 
-    def run(self):
+    def serve(self):
         self.before_server_start()
         self._log.info(GREETING)
         server_settings = self._app._helper(
@@ -158,7 +165,10 @@ class RPCServer:
             backlog=100,
             run_async=True,
             has_log=False)
-        self._loop.run_until_complete(serve(**server_settings))
+        return serve(**server_settings)
+
+    def run(self):
+        self._loop.run_until_complete(self.serve())
         try:
             self._log.warning('Starting server on http://%s:%s/...',
                               self._host, self._port)

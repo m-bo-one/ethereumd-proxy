@@ -1,0 +1,7 @@
+include LICENSE
+include README.rst
+include CHANGES.rst
+graft ethereumd
+graft examples
+graft tests
+global-exclude *.pyc

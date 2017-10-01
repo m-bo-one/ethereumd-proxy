@@ -26,7 +26,7 @@ def is_hex(s):
 # TODO: replace from proxy call in future
 async def quick_unlock_account(proxy, duration=5):
     return await proxy._rpc.personal_unlockAccount(
-        (await proxy._rpc.eth_accounts()[0]), 'admin', duration)
+        (await proxy._rpc.eth_accounts())[0], 'admin', duration)
 
 
 def setup_proxies(fn):
@@ -40,6 +40,18 @@ def setup_proxies(fn):
         self.ipc_proxy = await create_ethereumd_proxy(
             'unix://%s' % UNIX_PATH, loop=event_loop)
         self.proxies.append(self.ipc_proxy)
+
+        # wait first mined block
+        attempt = 0
+        while True:
+            number = await self.rpc_proxy._rpc.eth_blockNumber()
+            if number:
+                break
+            print('Waiting block, attempts left %s' % (10 - attempt))
+            attempt += 1
+            if attempt == 10:
+                assert False, 'Chain not synchronized'
+            await asyncio.sleep(1)
         return await fn(self, *args, **kwargs)
 
     return _wrapper

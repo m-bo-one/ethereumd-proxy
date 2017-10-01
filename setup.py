@@ -1,7 +1,14 @@
 import os
+import sys
 import re
 
 from setuptools import find_packages, setup
+
+
+if sys.version_info >= (3, 5):
+    pass
+else:
+    raise RuntimeError("ethereumd doesn't support Python version prior 3.5")
 
 
 def read(*parts):
@@ -28,13 +35,14 @@ setup(
     version=read_version(),
     description='Proxy client-server for Ethereum node using '
                 'JSON-RPC interface.',
-    long_description="\n\n".join((read('README.rst'), read('CHANGES.txt'))),
+    long_description="\n\n".join((read('README.rst'), read('CHANGES.rst'))),
     py_modules=['ethereum_cli'],
     author='Bogdan Kurinnyi',
     author_email='bogdankurinniy.dev1@gmail.com',
     url='https://github.com/DeV1doR/ethereumd-proxy',
     license='MIT',
     packages=find_packages(),
+    include_package_data=True,
     classifiers=[
         'Development Status :: 4 - Beta',
         'Intended Audience :: Developers',
