@@ -1,4 +1,4 @@
-|release| |coverage| |license|
+|pypi| |coverage| |license|
 
 ethereumd-proxy
 ===============
@@ -140,15 +140,9 @@ Sample of ethereum.conf
 Copy it to your datadir folder or use direct path to it.
 
 
-TODO
-----
-* Add more RPC methods;
-* Track orphaned blocks;
-
-
-.. |release| image:: https://img.shields.io/badge/release-v0.3.0-brightgreen.svg
-    :target: https://github.com/DeV1doR/ethereumd-proxy/releases/tag/v0.3.0
-    :alt: Release
+.. |pypi| image:: https://badge.fury.io/py/ethereumd-proxy.svg
+    :target: https://badge.fury.io/py/ethereumd-proxy
+    :alt: Latest version released on PyPi
 
 .. |coverage| image:: https://codecov.io/gh/DeV1doR/ethereumd-proxy/branch/master/graph/badge.svg
     :target: https://codecov.io/gh/DeV1doR/ethereumd-proxy
