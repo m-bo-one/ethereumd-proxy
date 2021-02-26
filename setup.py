@@ -55,7 +55,7 @@ setup(
     ],
     install_requires=[
         'sanic==0.5.4',
-        'aiohttp==2.2.3',
+        'aiohttp==3.7.4',
         'APScheduler==3.3.1',
         'colorlog==2.10.0',
         'click==6.7',
