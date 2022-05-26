@@ -60,7 +60,7 @@ setup(
         'colorlog==2.10.0',
         'click==6.7',
         'requests==2.9.1',
-        'ujson==1.35',
+        'ujson==5.2.0',
         'aioethereum==0.1.0',
     ],
     entry_points='''
