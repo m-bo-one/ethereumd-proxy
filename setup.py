@@ -54,7 +54,7 @@ setup(
         'Programming Language :: Python :: 3.6',
     ],
     install_requires=[
-        'sanic==0.5.4',
+        'sanic==20.12.7',
         'aiohttp==2.2.3',
         'APScheduler==3.3.1',
         'colorlog==2.10.0',
